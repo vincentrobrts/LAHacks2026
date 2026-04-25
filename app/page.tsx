@@ -4,54 +4,18 @@ import { ArrowRight, History, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { parseWithAgentverse } from "@/lib/agentverse";
-import { DEFAULT_CONFIGS, DEFAULT_PROMPT, DEMO_SHOT } from "@/lib/defaults";
+import { DEFAULT_PROMPT, DEMO_SHOT } from "@/lib/defaults";
 import { encodeSimulation } from "@/lib/share";
-import type { SimulationConfig, SimulationHistoryItem } from "@/types/simulation";
+import type { SimulationHistoryItem } from "@/types/simulation";
 
 const HISTORY_KEY = "physics-visualizer-history";
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function extractAtwoodConfig(prompt: string): SimulationConfig | null {
-  const lower = prompt.toLowerCase();
-  const isAtwood = /table/.test(lower) && /pulley|hanging|connected/.test(lower);
-  if (!isAtwood) return null;
-
-  const kgValues = Array.from(lower.matchAll(/(\d+(?:\.\d+)?)\s*kg\b/g)).map((match) => Number(match[1]));
-  const distance =
-    lower.match(/(?:falls|fall|moves|travels|over)\s*(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1] ??
-    lower.match(/(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1];
-  const friction =
-    lower.includes("frictionless")
-      ? "0"
-      : lower.match(/(?:Î¼|mu)\s*=\s*(\d+(?:\.\d+)?)/)?.[1] ??
-        lower.match(/friction\D{0,40}(\d+(?:\.\d+)?)/)?.[1];
-  const gravity = lower.match(/\bgravity\s*(?:is|=|of)?\s*(\d+(?:\.\d+)?)\b|\bg\s*=\s*(\d+(?:\.\d+)?)/);
-
-  if (kgValues.length < 2 || !distance || friction === undefined) return null;
-
-  const frictionValue = clamp(Number(friction), 0, 0.9);
-
-  return {
-    ...DEFAULT_CONFIGS.atwood_table,
-    params: {
-      mass1: clamp(kgValues[0], 0.5, 10),
-      mass2: clamp(kgValues[1], 0.5, 10),
-      friction: frictionValue,
-      distance: clamp(Number(distance), 1, 5),
-    },
-    world: {
-      gravity: gravity ? clamp(Number(gravity[1] ?? gravity[2]), 1, 20) : 9.8,
-      friction: frictionValue,
-    },
-  };
-}
 
 const EXAMPLE_PROMPTS = [
   "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
-  "A 2 kg crate slides down a 45 degree ramp with coefficient of kinetic friction 0.1 over 4 meters.",
-  "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
+  "A 2 kg ball is launched at 45° at 20 m/s.",
+  "Hydrogen atom electron drops from n=3 to n=1.",
+  "A 1 kg mass on a spring with k=20 N/m is pulled 0.5 m and released.",
+  "Two charges: +5 μC and −3 μC separated by 0.8 m.",
 ];
 
 export default function Home() {
@@ -66,7 +30,7 @@ export default function Home() {
 
   const start = async (perfect = false) => {
     setMessage("");
-    const config = perfect ? DEMO_SHOT : extractAtwoodConfig(prompt) ?? await parseWithAgentverse(prompt);
+    const config = perfect ? DEMO_SHOT : await parseWithAgentverse(prompt);
     const nextPrompt = perfect ? DEFAULT_PROMPT : prompt;
     const item: SimulationHistoryItem = {
       id: crypto.randomUUID(),
