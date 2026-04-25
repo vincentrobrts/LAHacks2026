@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { RotateCcw, Target, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -65,6 +65,11 @@ function arrowPoints(x: number, y: number, dx: number, dy: number) {
   return { x1: x, y1: y, x2: x + dx, y2: y + dy };
 }
 
+function forceArrowLength(force: number, referenceForce: number, min = 34, max = 92) {
+  if (!Number.isFinite(force) || !Number.isFinite(referenceForce) || referenceForce <= 0 || force <= 0) return min;
+  return clamp((force / referenceForce) * max, min, max);
+}
+
 function atwoodValidation(config: SimulationConfig) {
   const keys = ["mass1", "mass2", "friction", "distance"];
   return keys.filter((key) => typeof config.params[key] !== "number" || !Number.isFinite(config.params[key]) || (key !== "friction" && config.params[key] <= 0));
@@ -120,14 +125,19 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
     y: top.y + downRamp.y * blockTravel + normalDir.y * 22,
   };
   const blockTransform = `translate(${blockCenter.x} ${blockCenter.y}) rotate(${metrics.angle})`;
-  const gravityArrow = arrowPoints(blockCenter.x - 6, blockCenter.y - 4, 0, 62);
-  const normalArrow = arrowPoints(blockCenter.x + normalDir.x * 4, blockCenter.y + normalDir.y * 4, normalDir.x * 66, normalDir.y * 66);
-  const frictionArrow = arrowPoints(blockCenter.x - normalDir.x * 34, blockCenter.y - normalDir.y * 34, -downRamp.x * 70, -downRamp.y * 70);
-  const componentArrow = arrowPoints(blockCenter.x + normalDir.x * 42, blockCenter.y + normalDir.y * 42, downRamp.x * 66, downRamp.y * 66);
+  const maxInclinedForce = Math.max(metrics.mass * metrics.gravity, metrics.normal, metrics.frictionForce, metrics.gravityComponent);
+  const gravityLen = forceArrowLength(metrics.mass * metrics.gravity, maxInclinedForce);
+  const normalLen = forceArrowLength(metrics.normal, maxInclinedForce);
+  const frictionLen = forceArrowLength(metrics.frictionForce, maxInclinedForce);
+  const componentLen = forceArrowLength(metrics.gravityComponent, maxInclinedForce);
+  const gravityArrow = arrowPoints(blockCenter.x - 6, blockCenter.y - 4, 0, gravityLen);
+  const normalArrow = arrowPoints(blockCenter.x + normalDir.x * 4, blockCenter.y + normalDir.y * 4, normalDir.x * normalLen, normalDir.y * normalLen);
+  const frictionArrow = arrowPoints(blockCenter.x - normalDir.x * 34, blockCenter.y - normalDir.y * 34, -downRamp.x * frictionLen, -downRamp.y * frictionLen);
+  const componentArrow = arrowPoints(blockCenter.x + normalDir.x * 42, blockCenter.y + normalDir.y * 42, downRamp.x * componentLen, downRamp.y * componentLen);
   const activeArrowClass = "animate-pulse drop-shadow-[0_0_8px_rgba(242,193,78,0.95)]";
 
-  const arrowStyle = (active: boolean) => ({ opacity: active ? 1 : 0.42, strokeWidth: active ? 6 : 4 });
-  const labelStyle = (active: boolean) => ({ opacity: active ? 1 : 0.56, fontSize: active ? 17 : 15 });
+  const arrowStyle = (active: boolean) => ({ opacity: active ? 1 : running ? 0.22 : 0.42, strokeWidth: active ? 6 : 4 });
+  const labelStyle = (active: boolean) => ({ opacity: active ? 1 : running ? 0.24 : 0.56, fontSize: active ? 17 : 15 });
 
   const stepCopy = [
     {
@@ -230,10 +240,10 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
   };
 
   const highlights = {
-    gravity: guidedStep === 1,
-    normal: guidedStep === 1 || guidedStep === 2,
-    friction: guidedStep === 1,
-    component: guidedStep === 2 || guidedStep === 3 || guidedStep === 4,
+    gravity: !running && guidedStep === 1,
+    normal: !running && (guidedStep === 1 || guidedStep === 2),
+    friction: !running && guidedStep === 1,
+    component: !running && (guidedStep === 2 || guidedStep === 3 || guidedStep === 4),
   };
 
   return (
@@ -249,7 +259,7 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
           <path d={`M ${top.x} ${top.y} L ${bottom.x} ${bottom.y} L ${top.x} ${bottom.y} Z`} fill="#dfe8e4" stroke="#172033" strokeWidth="4" />
           <path d={`M ${top.x} ${top.y} L ${bottom.x} ${bottom.y}`} stroke="#172033" strokeWidth="8" strokeLinecap="round" />
           <path d={`M ${bottom.x - 92} ${bottom.y} A 92 92 0 0 0 ${bottom.x - 92 * Math.cos(metrics.theta)} ${bottom.y - 92 * Math.sin(metrics.theta)}`} fill="none" stroke="#f2c14e" strokeWidth="5" />
-          <text x={bottom.x - 132} y={bottom.y + 34} fill="#172033" fontSize="18" fontWeight="700">θ = {metrics.angle} deg</text>
+          <text x={bottom.x - 132} y={bottom.y + 34} fill="#172033" fontSize="18" fontWeight="700">θ = {fmt(metrics.angle, 1)}°</text>
 
           <g transform={blockTransform}>
             <rect x="-38" y="-24" width="76" height="48" rx="6" fill="#216869" />
@@ -306,25 +316,30 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
             </button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[0.75fr_1fr_1fr]">
-          <div className="rounded-md bg-slate-100 p-3 text-sm font-bold text-slate-900">{stepCopy.equation}</div>
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr]">
+          <div className="rounded-md bg-slate-100 p-4 text-sm font-bold leading-6 text-slate-900">{stepCopy.equation}</div>
           <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Notice:</span> {stepCopy.notice}</p>
           <p className="rounded-md bg-[#f2c14e]/20 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Diagram cue:</span> {stepCopy.diagram}</p>
         </div>
       </section>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
-          <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
-            <div>
+          <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-2">
+            <div className="rounded-md bg-white p-4">
               <div className="font-bold text-slate-900">Given values</div>
               <p className="mt-1 leading-6">m = {fmt(metrics.mass, 1)} kg<br />θ = {metrics.angle} deg<br />μₖ = {fmt(metrics.friction, 2)}<br />d = {fmt(metrics.distance, 1)} m<br />g = {fmt(metrics.gravity, 1)} m/s²</p>
             </div>
-            <div>
+            <div className="rounded-md bg-white p-4 md:row-span-2">
               <div className="font-bold text-slate-900">Equations</div>
-              <p className="mt-1 leading-6">N = mg cos θ<br />F<sub>f</sub> = μₖN<br />mg sin θ<br />a = g(sin θ − μₖ cos θ)</p>
+              <div className="mt-3 space-y-2 text-base font-semibold leading-7 text-slate-900">
+                <div className="rounded-md bg-slate-100 px-3 py-2">N = mg cos θ</div>
+                <div className="rounded-md bg-slate-100 px-3 py-2">F<sub>f</sub> = μₖN</div>
+                <div className="rounded-md bg-slate-100 px-3 py-2">mg sin θ</div>
+                <div className="rounded-md bg-slate-100 px-3 py-2">a = g(sin θ − μₖ cos θ)</div>
+              </div>
             </div>
-            <div>
+            <div className="rounded-md bg-white p-4">
               <div className="font-bold text-slate-900">Model results</div>
               <p className="mt-1 leading-6">N = {fmt(metrics.normal)} N<br />F<sub>f</sub> = {fmt(metrics.frictionForce)} N<br />mg sin θ = {fmt(metrics.gravityComponent)} N</p>
             </div>
@@ -491,17 +506,17 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-glow">
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-950">
-          <h2 className="text-lg font-black">Unable to parse the required values for this Atwood problem.</h2>
+          <h2 className="text-lg font-black">Unable to parse the required values for this Atwood Machine problem.</h2>
           <p className="mt-2 text-sm font-semibold">Missing values: {missingValues.join(", ")}</p>
           <button onClick={onLoadAtwoodExample} className="mt-4 rounded-md bg-[#216869] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1a5556]">
-            Load Atwood Example
+            Load Atwood Machine Example
           </button>
         </div>
       </div>
     );
   }
 
-  const tableTop = 240;
+  const tableTop = 220;
   const tableLeft = 80;
   const tableRight = 540;
   const pulleyRadius = 30;
@@ -511,7 +526,7 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
   const hangingHeight = 68;
   const pulley = { x: tableRight + pulleyRadius, y: tableTop - blockHeight / 2 };
   const maxVisibleTravel = HEIGHT - 32 - (pulley.y + pulleyRadius + hangingHeight);
-  const visualDistance = Math.min(metrics.distance * 36, maxVisibleTravel);
+  const visualDistance = Math.min(metrics.distance * 60, maxVisibleTravel);
   const displacementPx = progress * visualDistance;
   const blockX = tableLeft + 96 + displacementPx;
   const blockY = tableTop - blockHeight / 2;
@@ -521,8 +536,15 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
   const stringRightX = pulley.x + pulleyRadius;
   const targetDistanceTop = pulley.y + pulleyRadius + hangingHeight;
   const targetDistanceBottom = targetDistanceTop + visualDistance;
+  const maxAtwoodForce = Math.max(metrics.mass1 * metrics.gravity, metrics.mass2 * metrics.gravity, metrics.tension, metrics.frictionForce);
+  const m1WeightLen = forceArrowLength(metrics.mass1 * metrics.gravity, maxAtwoodForce, 34, 82);
+  const m2WeightLen = forceArrowLength(metrics.mass2 * metrics.gravity, maxAtwoodForce, 34, 82);
+  const normalLen = m1WeightLen;
+  const tensionLen = forceArrowLength(metrics.tension, maxAtwoodForce, 34, 82);
+  const frictionLen = forceArrowLength(metrics.frictionForce, maxAtwoodForce, 28, 76);
   const activeArrowClass = "animate-pulse drop-shadow-[0_0_8px_rgba(242,193,78,0.95)]";
-  const active = (enabled: boolean) => ({ opacity: enabled ? 1 : 0.4, strokeWidth: enabled ? 6 : 4 });
+  const active = (enabled: boolean) => ({ opacity: enabled ? 1 : running ? 0.2 : 0.4, strokeWidth: enabled ? 6 : 4 });
+  const forceLabelOpacity = running ? 0.28 : 1;
   const stepCopy = [
     {
       title: "Identify Connected Masses",
@@ -550,15 +572,15 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
     },
   ][guidedStep - 1];
   const highlights = {
-    masses: guidedStep === 1,
-    forces: guidedStep === 2,
-    motion: guidedStep === 3 || guidedStep === 4,
+    masses: !running && guidedStep === 1,
+    forces: !running && guidedStep === 2,
+    motion: !running && (guidedStep === 3 || guidedStep === 4),
   };
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-glow">
       <div className="relative overflow-hidden rounded-md border border-slate-200 bg-[#eef5f1]">
-        <svg className="aspect-[1.46] w-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Atwood table physics visualization">
+        <svg className="aspect-[1.46] w-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Atwood Machine physics visualization">
           <defs>
             <marker id="atwood-arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
               <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" />
@@ -583,27 +605,27 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
           </g>
 
           <g className={highlights.forces ? activeArrowClass : ""} color="#1d4ed8" stroke="currentColor" markerEnd="url(#atwood-arrow)" style={active(highlights.forces)}>
-            <line x1={blockX - 18} y1={blockY - blockHeight / 2} x2={blockX - 18} y2={blockY - blockHeight / 2 - 64} />
-            <line x1={blockX + blockWidth / 2} y1={blockY} x2={blockX + blockWidth / 2 + 68} y2={blockY} />
-            <line x1={hangingX + hangingWidth / 2} y1={hangingY - hangingHeight / 2} x2={hangingX + hangingWidth / 2} y2={hangingY - hangingHeight / 2 - 58} />
+            <line x1={blockX - 18} y1={blockY - blockHeight / 2} x2={blockX - 18} y2={blockY - blockHeight / 2 - normalLen} />
+            <line x1={blockX + blockWidth / 2} y1={blockY} x2={blockX + blockWidth / 2 + tensionLen} y2={blockY} />
+            <line x1={hangingX + hangingWidth / 2} y1={hangingY - hangingHeight / 2} x2={hangingX + hangingWidth / 2} y2={hangingY - hangingHeight / 2 - tensionLen} />
           </g>
-          <text x={blockX - 36} y={blockY - blockHeight / 2 - 70} fill="#1d4ed8" fontSize="15" fontWeight="800">N</text>
-          <text x={blockX + blockWidth / 2 + 76} y={blockY - 8} fill="#1d4ed8" fontSize="15" fontWeight="800">T</text>
-          <text x={hangingX + hangingWidth / 2 + 12} y={hangingY - hangingHeight / 2 - 54} fill="#1d4ed8" fontSize="15" fontWeight="800">T</text>
+          <text x={blockX - 36} y={blockY - blockHeight / 2 - normalLen - 8} fill="#1d4ed8" fontSize="15" fontWeight="800" opacity={forceLabelOpacity}>N</text>
+          <text x={blockX + blockWidth / 2 + tensionLen + 8} y={blockY - 8} fill="#1d4ed8" fontSize="15" fontWeight="800" opacity={forceLabelOpacity}>Fₜ</text>
+          <text x={hangingX + hangingWidth / 2 + 12} y={hangingY - hangingHeight / 2 - tensionLen + 4} fill="#1d4ed8" fontSize="15" fontWeight="800" opacity={forceLabelOpacity}>Fₜ</text>
 
           <g className={highlights.forces ? activeArrowClass : ""} color="#c2410c" stroke="currentColor" markerEnd="url(#atwood-arrow)" style={active(highlights.forces)}>
-            <line x1={blockX - 18} y1={blockY + blockHeight / 2} x2={blockX - 18} y2={blockY + blockHeight / 2 + 64} />
-            <line x1={hangingX + hangingWidth / 2} y1={hangingY + hangingHeight / 2} x2={hangingX + hangingWidth / 2} y2={hangingY + hangingHeight / 2 + 68} />
+            <line x1={blockX - 18} y1={blockY + blockHeight / 2} x2={blockX - 18} y2={blockY + blockHeight / 2 + m1WeightLen} />
+            <line x1={hangingX + hangingWidth / 2} y1={hangingY + hangingHeight / 2} x2={hangingX + hangingWidth / 2} y2={hangingY + hangingHeight / 2 + m2WeightLen} />
           </g>
-          <text x={blockX - 48} y={blockY + blockHeight / 2 + 78} fill="#9a3412" fontSize="15" fontWeight="800">m₁g</text>
-          <text x={hangingX + hangingWidth / 2 + 12} y={hangingY + hangingHeight / 2 + 78} fill="#9a3412" fontSize="15" fontWeight="800">m₂g</text>
+          <text x={blockX - 48} y={blockY + blockHeight / 2 + m1WeightLen + 18} fill="#9a3412" fontSize="15" fontWeight="800" opacity={forceLabelOpacity}>m₁g</text>
+          <text x={hangingX + hangingWidth / 2 + 12} y={hangingY + hangingHeight / 2 + m2WeightLen + 18} fill="#9a3412" fontSize="15" fontWeight="800" opacity={forceLabelOpacity}>m₂g</text>
 
           {metrics.friction > 0 ? (
             <>
               <g className={highlights.forces ? activeArrowClass : ""} color="#7c3aed" stroke="currentColor" markerEnd="url(#atwood-arrow)" style={active(highlights.forces)}>
-                <line x1={blockX - blockWidth / 2} y1={blockY + 4} x2={blockX - blockWidth / 2 - 66} y2={blockY + 4} />
+                <line x1={blockX - blockWidth / 2} y1={blockY + 4} x2={blockX - blockWidth / 2 - frictionLen} y2={blockY + 4} />
               </g>
-              <text x={blockX - blockWidth / 2 - 126} y={blockY - 4} fill="#6d28d9" fontSize="15" fontWeight="800">friction</text>
+              <text x={blockX - blockWidth / 2 - frictionLen - 70} y={blockY - 4} fill="#6d28d9" fontSize="15" fontWeight="800" opacity={forceLabelOpacity}>friction</text>
             </>
           ) : null}
 
@@ -637,16 +659,16 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
             <button onClick={() => goToStep(guidedStep + 1)} disabled={guidedStep === 4} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Next Step</button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[0.75fr_1fr_1fr]">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-slate-100 p-3 text-sm font-bold text-slate-900">{stepCopy.equation}</div>
           <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Notice:</span> {stepCopy.notice}</p>
           <p className="rounded-md bg-[#f2c14e]/20 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Diagram cue:</span> {stepCopy.diagram}</p>
         </div>
       </section>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
-          <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+          <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
             <div className="rounded-md bg-white p-3">
               <div className="font-bold text-slate-900">Given values</div>
               <p className="mt-1 leading-6">m<sub>1</sub> = {fmt(metrics.mass1, 1)} kg<br />m<sub>2</sub> = {fmt(metrics.mass2, 1)} kg<br />μ = {fmt(metrics.friction, 2)}<br />d = {fmt(metrics.distance, 1)} m<br />g = {fmt(metrics.gravity, 1)} m/s²</p>
@@ -810,16 +832,16 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
             <button onClick={() => goToStep(guidedStep + 1)} disabled={guidedStep === 4} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Next Step</button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[0.75fr_1fr_1fr]">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-slate-100 p-3 text-sm font-bold text-slate-900">{stepCopy.equation}</div>
           <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Notice:</span> {stepCopy.notice}</p>
           <p className="rounded-md bg-[#f2c14e]/20 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Diagram cue:</span> {stepCopy.diagram}</p>
         </div>
       </section>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
-          <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+          <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
             <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">v₀ = {fmt(metrics.speed, 1)} m/s<br />θ = {metrics.angle}°<br />g = {fmt(metrics.gravity, 1)} m/s²</p></div>
             <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">vₓ = v₀cosθ<br />vy = v₀sinθ<br />y = vyt − ½gt²<br />R = vₓ · t_f</p></div>
             <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">vₓ = {fmt(metrics.vx)} m/s<br />vy = {fmt(metrics.vy)} m/s<br />t_peak = {fmt(metrics.peakTime)} s</p></div>
@@ -842,7 +864,7 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
 // ── Pendulum ──────────────────────────────────────────────────────────────────
 
 function pendulumMetrics(config: SimulationConfig) {
-  const lengthPx = clamp(config.params.length ?? 150, 50, 250);
+  const lengthPx = clamp(config.params.length ?? 150, 10, 250);
   const initialAngle = clamp(config.params.initial_angle ?? 45, 5, 80);
   const mass = clamp(config.params.mass ?? 1, 0.5, 5);
   const gravity = clamp(config.world.gravity, 1, 20);
@@ -864,7 +886,7 @@ function PendulumScene({ config, onOutcome }: Props) {
   const startRef = useRef<number>(0);
 
   const pivotX = WIDTH / 2; const pivotY = 72;
-  const armPx = clamp(metrics.L_m * 120, 100, 320);
+  const armPx = clamp(90 + metrics.L_m * 50, 115, 330);
   const bobX = pivotX + Math.sin(angle) * armPx;
   const bobY = pivotY + Math.cos(angle) * armPx;
   const arcR = Math.min(armPx * 0.55, 100);
@@ -917,7 +939,7 @@ function PendulumScene({ config, onOutcome }: Props) {
           <rect x={pivotX - 44} y={pivotY - 14} width="88" height="14" rx="3" fill="#172033" />
           <line x1={pivotX} y1={pivotY} x2={pivotX} y2={pivotY + armPx + 30} stroke="#94a3b8" strokeWidth="1" strokeDasharray="6 4" />
           {/* Arc sweep to show θ */}
-          <path d={`M ${pivotX} ${pivotY + arcR} A ${arcR} ${arcR} 0 0 ${metrics.theta0 >= 0 ? 1 : 0} ${pivotX + Math.sin(metrics.theta0) * arcR} ${pivotY + Math.cos(metrics.theta0) * arcR}`} fill="none" stroke="#f2c14e" strokeWidth="3" />
+          <path d={`M ${pivotX} ${pivotY + arcR} A ${arcR} ${arcR} 0 0 0 ${pivotX + Math.sin(metrics.theta0) * arcR} ${pivotY + Math.cos(metrics.theta0) * arcR}`} fill="none" stroke="#f2c14e" strokeWidth="3" />
           <text x={pivotX + Math.sin(metrics.theta0 / 2) * (arcR + 14)} y={pivotY + Math.cos(metrics.theta0 / 2) * (arcR + 14) + 4} fill="#92400e" fontSize="13" fontWeight="700">{metrics.initialAngle}°</text>
           <line x1={pivotX} y1={pivotY} x2={bobX} y2={bobY} stroke="#172033" strokeWidth="4" strokeLinecap="round" />
           <circle cx={pivotX} cy={pivotY} r="8" fill="#172033" />
@@ -949,16 +971,16 @@ function PendulumScene({ config, onOutcome }: Props) {
             <button onClick={() => goToStep(guidedStep + 1)} disabled={guidedStep === 4} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Next Step</button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[0.75fr_1fr_1fr]">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-slate-100 p-3 text-sm font-bold text-slate-900">{stepCopy.equation}</div>
           <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Notice:</span> {stepCopy.notice}</p>
           <p className="rounded-md bg-[#f2c14e]/20 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Diagram cue:</span> {stepCopy.diagram}</p>
         </div>
       </section>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
-          <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+          <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
             <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">L = {fmt(metrics.L_m, 2)} m<br />m = {fmt(metrics.mass, 1)} kg<br />θ₀ = {metrics.initialAngle}°<br />g = {fmt(metrics.gravity, 1)} m/s²</p></div>
             <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">ω = √(g/L)<br />T = 2π/ω<br />θ(t) = θ₀cos(ωt)<br />v_max = ω·L·sinθ₀</p></div>
             <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">ω = {fmt(metrics.omega, 3)} rad/s<br />T = {fmt(metrics.period, 3)} s<br />v_max = {fmt(metrics.maxSpeed, 2)} m/s<br />h_max = {fmt(metrics.maxHeight, 3)} m</p></div>
@@ -985,13 +1007,18 @@ function collisionMetrics(config: SimulationConfig) {
   const v1 = clamp(config.params.v1 ?? 5, -20, 20);
   const m2 = clamp(config.params.mass2 ?? 1, 0.5, 10);
   const v2 = clamp(config.params.v2 ?? -2, -20, 20);
-  const e = clamp(config.params.restitution ?? 0.8, 0, 1);
+  const e = clamp(config.params.restitution ?? 0, 0, 1);
   const v1f = ((m1 - e * m2) * v1 + (1 + e) * m2 * v2) / (m1 + m2);
   const v2f = ((m2 - e * m1) * v2 + (1 + e) * m1 * v1) / (m1 + m2);
   const momentum = m1 * v1 + m2 * v2;
   const keI = 0.5 * m1 * v1 * v1 + 0.5 * m2 * v2 * v2;
   const keF = 0.5 * m1 * v1f * v1f + 0.5 * m2 * v2f * v2f;
-  return { m1, v1, m2, v2, e, v1f, v2f, momentum, keInitial: keI, keLost: Math.max(0, keI - keF) };
+  return { m1, v1, m2, v2, e, v1f, v2f, momentum, keInitial: keI, keLost: Math.max(0, keI - keF), valid: v1 > v2 };
+}
+
+function signedFmt(value: number, digits = 2) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${fmt(value, digits)}`;
 }
 
 function CollisionScene({ config, onOutcome }: Props) {
@@ -1002,25 +1029,28 @@ function CollisionScene({ config, onOutcome }: Props) {
   const [guidedStep, setGuidedStep] = useState(1);
   const frameRef = useRef<number | null>(null);
 
-  const GY = 380; const cy = GY - 40;
+  const GY = 390;
   const B1W = clamp(metrics.m1 * 22, 44, 110); const B2W = clamp(metrics.m2 * 22, 44, 110);
   const BH = 52; const midX = WIDTH / 2;
+  const blockY = GY - BH;
+  const contactX1 = midX - B1W;
+  const contactX2 = midX;
+  const velocityScale = 18;
+  const preTime = clamp(220 / ((metrics.v1 - metrics.v2) * velocityScale), 0.45, 1.4);
+  const postTime = 1.25;
+  const preProgress = clamp(progress / 0.5, 0, 1);
+  const postProgress = clamp((progress - 0.5) / 0.5, 0, 1);
+  const preTimeLeft = preTime * (1 - preProgress);
+  const postTimeElapsed = postTime * postProgress;
+  const x1 = progress < 0.5
+    ? contactX1 - metrics.v1 * velocityScale * preTimeLeft
+    : contactX1 + metrics.v1f * velocityScale * postTimeElapsed;
+  const x2 = progress < 0.5
+    ? contactX2 - metrics.v2 * velocityScale * preTimeLeft
+    : contactX2 + metrics.v2f * velocityScale * postTimeElapsed;
 
-  const x1 = (() => {
-    if (phase === "pre") return 60 + progress * (midX - B1W - 62);
-    if (phase === "collision") return midX - B1W;
-    const dir = metrics.v1f >= 0 ? 1 : -1;
-    return midX - B1W + dir * progress * (WIDTH * 0.28);
-  })();
-  const x2 = (() => {
-    if (phase === "pre") return WIDTH - 60 - B2W - progress * (WIDTH - 60 - B2W - midX);
-    if (phase === "collision") return midX;
-    const dir = metrics.v2f >= 0 ? 1 : -1;
-    return midX + dir * progress * (WIDTH * 0.28);
-  })();
-
-  const velLabel1 = phase === "post" ? `${fmt(metrics.v1f)} m/s` : `${fmt(metrics.v1)} m/s`;
-  const velLabel2 = phase === "post" ? `${fmt(metrics.v2f)} m/s` : `${fmt(metrics.v2)} m/s`;
+  const velLabel1 = progress >= 0.5 ? `${signedFmt(metrics.v1f)} m/s` : `${signedFmt(metrics.v1)} m/s`;
+  const velLabel2 = progress >= 0.5 ? `${signedFmt(metrics.v2f)} m/s` : `${signedFmt(metrics.v2)} m/s`;
 
   useEffect(() => {
     setProgress(0); setPhase("pre"); setRunning(false);
@@ -1028,30 +1058,30 @@ function CollisionScene({ config, onOutcome }: Props) {
     onOutcome({ launched: false, success: false, metrics: {} });
   }, [metrics.m1, metrics.v1, metrics.m2, metrics.v2, metrics.e, onOutcome]);
 
-  const runPhase = useCallback((ph: "pre" | "collision" | "post", dur: number, onDone?: () => void) => {
-    setPhase(ph); setProgress(0);
-    const startedAt = performance.now();
-    const tick = (now: number) => {
-      const p = clamp((now - startedAt) / dur, 0, 1);
-      setProgress(p);
-      if (p < 1) { frameRef.current = requestAnimationFrame(tick); return; }
-      onDone?.();
-    };
-    frameRef.current = requestAnimationFrame(tick);
-  }, []);
-
   const run = useCallback(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    if (!metrics.valid) {
+      onOutcome({ launched: true, success: false, metrics: {} });
+      return;
+    }
     setRunning(true);
-    runPhase("pre", 1200, () =>
-      runPhase("collision", 300, () =>
-        runPhase("post", 1200, () => {
-          setRunning(false);
-          onOutcome({ launched: true, success: true, metrics: { v1_final_m_s: metrics.v1f, v2_final_m_s: metrics.v2f, ke_lost_j: metrics.keLost, momentum_kg_m_s: metrics.momentum } });
-        })
-      )
-    );
-  }, [runPhase, metrics, onOutcome]);
+    setPhase("pre");
+    setProgress(0);
+    const startedAt = performance.now();
+    const duration = 2200;
+    const tick = (now: number) => {
+      const p = clamp((now - startedAt) / duration, 0, 1);
+      setProgress(p);
+      setPhase(p >= 0.5 ? "post" : "pre");
+      if (p < 1) {
+        frameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      setRunning(false);
+      onOutcome({ launched: true, success: true, metrics: { v1_final_m_s: metrics.v1f, v2_final_m_s: metrics.v2f, ke_lost_j: metrics.keLost, momentum_kg_m_s: metrics.momentum } });
+    };
+    frameRef.current = requestAnimationFrame(tick);
+  }, [metrics, onOutcome]);
 
   const reset = () => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -1060,12 +1090,28 @@ function CollisionScene({ config, onOutcome }: Props) {
   };
   const goToStep = (s: number) => { const n = clamp(s, 1, 4); setGuidedStep(n); if (n === 4) run(); };
 
+  const showRestitutionEquations = metrics.e > 0;
   const stepCopy = [
     { title: "Initial State", equation: `m₁ = ${fmt(metrics.m1, 1)} kg @ ${fmt(metrics.v1, 1)} m/s,  m₂ = ${fmt(metrics.m2, 1)} kg @ ${fmt(metrics.v2, 1)} m/s`, notice: "Positive velocity means moving right. The blocks approach each other if their velocities point toward the center.", diagram: "Green block (m₁) on the left, purple block (m₂) on the right. Velocity labels show direction." },
-    { title: "Conservation of Momentum", equation: `p = m₁v₁ + m₂v₂ = ${fmt(metrics.momentum, 2)} kg·m/s  (conserved)`, notice: "Total momentum is the same before and after in any collision. Only energy may be lost.", diagram: "The system's total momentum is constant — it's the same number before and after the flash." },
-    { title: "Coefficient of Restitution", equation: `e = (v₂' − v₁') / (v₁ − v₂) = ${fmt(metrics.e, 2)}`, notice: `e = 1 is perfectly elastic (no energy loss), e = 0 is perfectly inelastic (they stick). Here KE lost = ${fmt(metrics.keLost, 2)} J.`, diagram: "e controls how 'bouncy' the collision is. Watch how the separation speed compares to the approach speed." },
-    { title: "Post-Collision Velocities", equation: `v₁' = ${fmt(metrics.v1f, 2)} m/s,  v₂' = ${fmt(metrics.v2f, 2)} m/s`, notice: "Both momentum and restitution equations together give two equations for two unknowns (v₁' and v₂').", diagram: "Watch the blocks collide. After the flash, they move with the new velocities shown above." },
+    { title: "Conservation of Momentum", equation: "m₁v₁ + m₂v₂ = m₁v₁f + m₂v₂f", notice: `Momentum stays ${fmt(metrics.momentum, 2)} kg·m/s through the collision.`, diagram: "The blocks meet on the track, then continue according to the final velocities." },
+    showRestitutionEquations
+      ? { title: "Restitution", equation: `e = (v₂f − v₁f) / (v₁ − v₂) = ${fmt(metrics.e, 2)}`, notice: `e = 1 is perfectly elastic, e = 0 is perfectly inelastic. Here KE lost = ${fmt(metrics.keLost, 2)} J.`, diagram: "Higher restitution makes the blocks separate faster after impact." }
+      : { title: "Perfectly Inelastic Default", equation: "v₁f = v₂f = (m₁v₁ + m₂v₂) / (m₁ + m₂)", notice: "With default restitution e = 0, the blocks stick together and share one final velocity.", diagram: "After contact, both blocks move together with no pause at impact." },
+    { title: "Post-Collision Velocities", equation: `v₁f = ${signedFmt(metrics.v1f, 2)} m/s,  v₂f = ${signedFmt(metrics.v2f, 2)} m/s`, notice: "Positive values move right and negative values move left, matching the labels in the animation.", diagram: "Watch the blocks continue smoothly after contact." },
   ][guidedStep - 1];
+
+  if (!metrics.valid) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-glow">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-950">
+          <h2 className="text-lg font-black">Unable to show a 1D collision for these values.</h2>
+          <p className="mt-2 text-sm font-semibold">
+            The left block must be moving faster than the right block so they actually collide. Try v₁ greater than v₂, or use a collision prompt with two approaching objects.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-glow">
@@ -1078,13 +1124,13 @@ function CollisionScene({ config, onOutcome }: Props) {
           <rect x="0" y={GY} width={WIDTH} height={HEIGHT - GY} fill="#d4e4dc" />
           <line x1="0" y1={GY} x2={WIDTH} y2={GY} stroke="#172033" strokeWidth="5" />
           {/* Block 1 */}
-          <rect x={x1} y={cy - BH / 2} width={B1W} height={BH} rx="7" fill={phase === "collision" ? "#f2c14e" : "#216869"} />
-          <text x={x1 + B1W / 2} y={cy + 6} textAnchor="middle" fill="white" fontSize="16" fontWeight="800">m₁</text>
-          <text x={x1 + B1W / 2} y={cy - BH / 2 - 10} textAnchor="middle" fill="#216869" fontSize="13" fontWeight="700">{velLabel1}</text>
+          <rect x={x1} y={blockY} width={B1W} height={BH} rx="7" fill={Math.abs(progress - 0.5) < 0.04 ? "#f2c14e" : "#216869"} />
+          <text x={x1 + B1W / 2} y={blockY + BH / 2 + 6} textAnchor="middle" fill="white" fontSize="16" fontWeight="800">m₁</text>
+          <text x={x1 + B1W / 2} y={blockY - 10} textAnchor="middle" fill="#216869" fontSize="13" fontWeight="700">{velLabel1}</text>
           {/* Block 2 */}
-          <rect x={x2} y={cy - BH / 2} width={B2W} height={BH} rx="7" fill={phase === "collision" ? "#f2c14e" : "#7c3aed"} />
-          <text x={x2 + B2W / 2} y={cy + 6} textAnchor="middle" fill="white" fontSize="16" fontWeight="800">m₂</text>
-          <text x={x2 + B2W / 2} y={cy - BH / 2 - 10} textAnchor="middle" fill="#7c3aed" fontSize="13" fontWeight="700">{velLabel2}</text>
+          <rect x={x2} y={blockY} width={B2W} height={BH} rx="7" fill={Math.abs(progress - 0.5) < 0.04 ? "#f2c14e" : "#7c3aed"} />
+          <text x={x2 + B2W / 2} y={blockY + BH / 2 + 6} textAnchor="middle" fill="white" fontSize="16" fontWeight="800">m₂</text>
+          <text x={x2 + B2W / 2} y={blockY - 10} textAnchor="middle" fill="#7c3aed" fontSize="13" fontWeight="700">{velLabel2}</text>
         </svg>
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
@@ -1100,26 +1146,26 @@ function CollisionScene({ config, onOutcome }: Props) {
             <button onClick={() => goToStep(guidedStep + 1)} disabled={guidedStep === 4} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Next Step</button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[0.75fr_1fr_1fr]">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-slate-100 p-3 text-sm font-bold text-slate-900">{stepCopy.equation}</div>
           <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Notice:</span> {stepCopy.notice}</p>
           <p className="rounded-md bg-[#f2c14e]/20 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Diagram cue:</span> {stepCopy.diagram}</p>
         </div>
       </section>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
-          <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
-            <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">m₁ = {fmt(metrics.m1, 1)} kg<br />v₁ = {fmt(metrics.v1, 1)} m/s<br />m₂ = {fmt(metrics.m2, 1)} kg<br />v₂ = {fmt(metrics.v2, 1)} m/s<br />e = {fmt(metrics.e, 2)}</p></div>
-            <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">p_i = p_f<br />e = (v₂&apos;−v₁&apos;)/(v₁−v₂)<br />v₁&apos; = (m₁−em₂)v₁+(1+e)m₂v₂ / (m₁+m₂)</p></div>
-            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">v₁&apos; = {fmt(metrics.v1f, 2)} m/s<br />v₂&apos; = {fmt(metrics.v2f, 2)} m/s<br />p = {fmt(metrics.momentum, 2)} kg·m/s<br />KE lost = {fmt(metrics.keLost, 2)} J</p></div>
+          <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
+            <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">m₁ = {fmt(metrics.m1, 1)} kg<br />v₁ = {signedFmt(metrics.v1, 1)} m/s<br />m₂ = {fmt(metrics.m2, 1)} kg<br />v₂ = {signedFmt(metrics.v2, 1)} m/s<br />e = {fmt(metrics.e, 2)}</p></div>
+            <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">m₁v₁ + m₂v₂ = m₁v₁f + m₂v₂f<br />{showRestitutionEquations ? <>e = (v₂f − v₁f)/(v₁ − v₂)<br />e = {fmt(metrics.e, 2)}</> : <>e = 0 default<br />v₁f = v₂f</>}</p></div>
+            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">v₁f = {signedFmt(metrics.v1f, 2)} m/s<br />v₂f = {signedFmt(metrics.v2f, 2)} m/s<br />p = {fmt(metrics.momentum, 2)} kg·m/s<br />KE lost = {fmt(metrics.keLost, 2)} J</p></div>
           </div>
         </section>
         <section className="rounded-md border border-slate-200 bg-white p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Results</h3>
           <div className="mt-3 space-y-2 text-sm">
-            <div className="rounded-md bg-[#216869]/10 p-3 text-[#174f50]"><span className="font-bold">v₁ final:</span> {fmt(metrics.v1f, 2)} m/s</div>
-            <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">v₂ final:</span> {fmt(metrics.v2f, 2)} m/s</div>
+            <div className="rounded-md bg-[#216869]/10 p-3 text-[#174f50]"><span className="font-bold">v₁ final:</span> {signedFmt(metrics.v1f, 2)} m/s</div>
+            <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">v₂ final:</span> {signedFmt(metrics.v2f, 2)} m/s</div>
             <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Momentum (conserved):</span> {fmt(metrics.momentum, 2)} kg·m/s</div>
             <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">KE lost:</span> {fmt(metrics.keLost, 2)} J {metrics.e >= 0.99 ? "(elastic — none)" : ""}</div>
           </div>
@@ -1133,7 +1179,7 @@ function CollisionScene({ config, onOutcome }: Props) {
 
 function freeFallMetrics(config: SimulationConfig) {
   const heightPx = clamp(config.params.height ?? 200, 50, 400);
-  const mass = clamp(config.params.mass ?? 1, 0.5, 10);
+  const mass = clamp(config.params.mass ?? 1, 0.1, 25);
   const k = clamp(config.params.air_resistance ?? 0, 0, 0.1);
   const gravity = clamp(config.world.gravity, 1, 20);
   const h = heightPx / 10;
@@ -1151,9 +1197,13 @@ function FreeFallScene({ config, onOutcome }: Props) {
   const frameRef = useRef<number | null>(null);
 
   const topY = 60; const groundY = 440; const cx = WIDTH / 2;
-  const ballR = clamp(metrics.mass * 6 + 12, 14, 30);
-  const dropH = groundY - topY - ballR;
-  const ballY = topY + ballR + progress * dropH;
+  const ballR = clamp(12 + Math.sqrt(metrics.mass) * 7, 15, 48);
+  const fallingObjects = [
+    { x: cx - 95, r: clamp(ballR * 0.72, 13, 34), label: "light" },
+    { x: cx, r: ballR, label: `${fmt(metrics.mass, 1)} kg` },
+    { x: cx + 95, r: clamp(ballR * 1.18, 18, 54), label: "heavy" },
+  ];
+  const ballY = (r: number) => topY + r + progress * (groundY - topY - 2 * r);
   const speedNow = metrics.gravity * (progress * metrics.tof);
   const arrowLen = clamp(speedNow * 6, 0, 70);
 
@@ -1161,7 +1211,7 @@ function FreeFallScene({ config, onOutcome }: Props) {
     setProgress(0); setRunning(false); setCurrentSpeed(0);
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
     onOutcome({ launched: false, success: false, metrics: {} });
-  }, [metrics.h, metrics.gravity, metrics.k, onOutcome]);
+  }, [metrics.h, metrics.gravity, metrics.k, metrics.mass, onOutcome]);
 
   const run = useCallback(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -1172,7 +1222,8 @@ function FreeFallScene({ config, onOutcome }: Props) {
     const tick = (now: number) => {
       const p = clamp((now - startedAt) / dur, 0, 1);
       const t = p * metrics.tof;
-      setProgress(p);
+      const distanceProgress = metrics.k === 0 ? p * p : p ** 1.75;
+      setProgress(distanceProgress);
       setCurrentSpeed(metrics.gravity * t);
       if (p < 1) { frameRef.current = requestAnimationFrame(tick); return; }
       setRunning(false);
@@ -1206,18 +1257,22 @@ function FreeFallScene({ config, onOutcome }: Props) {
           <rect x="0" y={groundY} width={WIDTH} height={HEIGHT - groundY} fill="#d4e4dc" />
           <line x1="0" y1={groundY} x2={WIDTH} y2={groundY} stroke="#172033" strokeWidth="5" />
           {/* Height label */}
-          <line x1={cx + 80} y1={topY + ballR} x2={cx + 80} y2={groundY} stroke="#94a3b8" strokeWidth="2" strokeDasharray="6 4" />
-          <line x1={cx + 68} y1={topY + ballR} x2={cx + 92} y2={topY + ballR} stroke="#94a3b8" strokeWidth="2" />
-          <line x1={cx + 68} y1={groundY} x2={cx + 92} y2={groundY} stroke="#94a3b8" strokeWidth="2" />
-          <text x={cx + 96} y={(topY + groundY) / 2 + 5} fill="#475569" fontSize="14" fontWeight="700">h = {fmt(metrics.h, 1)} m</text>
+          <line x1={cx + 160} y1={topY + 2 * ballR} x2={cx + 160} y2={groundY} stroke="#94a3b8" strokeWidth="2" strokeDasharray="6 4" />
+          <line x1={cx + 148} y1={topY + 2 * ballR} x2={cx + 172} y2={topY + 2 * ballR} stroke="#94a3b8" strokeWidth="2" />
+          <line x1={cx + 148} y1={groundY} x2={cx + 172} y2={groundY} stroke="#94a3b8" strokeWidth="2" />
+          <text x={cx + 176} y={(topY + groundY) / 2 + 5} fill="#475569" fontSize="14" fontWeight="700">h = {fmt(metrics.h, 1)} m</text>
           {/* Velocity arrow */}
           {arrowLen > 4 && (
             <g color="#c2410c" stroke="currentColor" markerEnd="url(#ff-arr)" strokeWidth="4">
-              <line x1={cx} y1={ballY + ballR + 4} x2={cx} y2={ballY + ballR + 4 + arrowLen} />
+                <line x1={cx} y1={ballY(ballR) + ballR + 4} x2={cx} y2={ballY(ballR) + ballR + 4 + arrowLen} />
+              </g>
+            )}
+          {fallingObjects.map((object, index) => (
+            <g key={object.label}>
+              <circle cx={object.x} cy={ballY(object.r)} r={object.r} fill={index === 1 ? "#216869" : "#7aa6a3"} stroke="#172033" strokeWidth="3" opacity={index === 1 ? 1 : 0.78} />
+              <text x={object.x} y={ballY(object.r) + object.r + 18} textAnchor="middle" fill="#172033" fontSize="12" fontWeight="800">{object.label}</text>
             </g>
-          )}
-          {/* Ball */}
-          <circle cx={cx} cy={ballY} r={ballR} fill="#216869" stroke="#172033" strokeWidth="3" />
+          ))}
           {progress >= 0.99 && <text x={cx} y={groundY + 28} textAnchor="middle" fill="#c2410c" fontSize="14" fontWeight="800">Impact: {fmt(metrics.vImpact, 2)} m/s</text>}
         </svg>
       </div>
@@ -1234,16 +1289,16 @@ function FreeFallScene({ config, onOutcome }: Props) {
             <button onClick={() => goToStep(guidedStep + 1)} disabled={guidedStep === 4} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Next Step</button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[0.75fr_1fr_1fr]">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-slate-100 p-3 text-sm font-bold text-slate-900">{stepCopy.equation}</div>
           <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Notice:</span> {stepCopy.notice}</p>
           <p className="rounded-md bg-[#f2c14e]/20 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Diagram cue:</span> {stepCopy.diagram}</p>
         </div>
       </section>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
-          <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+          <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
             <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">h = {fmt(metrics.h, 1)} m<br />m = {fmt(metrics.mass, 1)} kg<br />g = {fmt(metrics.gravity, 1)} m/s²<br />k = {fmt(metrics.k, 3)}</p></div>
             <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">v² = 2gh<br />t = √(2h/g)<br />v = gt  (vacuum)<br />F = mg − kv (drag)</p></div>
             <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">t = {fmt(metrics.tof, 2)} s<br />v_impact = {fmt(metrics.vImpact, 2)} m/s</p></div>
@@ -1387,16 +1442,16 @@ function SpringMassScene({ config, onOutcome }: Props) {
             <button onClick={() => goToStep(guidedStep + 1)} disabled={guidedStep === 4} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Next Step</button>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[0.75fr_1fr_1fr]">
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="rounded-md bg-slate-100 p-3 text-sm font-bold text-slate-900">{stepCopy.equation}</div>
           <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Notice:</span> {stepCopy.notice}</p>
           <p className="rounded-md bg-[#f2c14e]/20 p-3 text-sm leading-6 text-slate-700"><span className="font-bold text-slate-950">Diagram cue:</span> {stepCopy.diagram}</p>
         </div>
       </section>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
-          <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+          <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
             <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">k = {fmt(metrics.k, 1)} N/m<br />m = {fmt(metrics.mass, 1)} kg<br />A = {fmt(metrics.amplitude, 2)} m</p></div>
             <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">F = −kx<br />ω = √(k/m)<br />T = 2π/ω<br />x(t) = A cos(ωt)</p></div>
             <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">ω = {fmt(metrics.omega, 3)} rad/s<br />T = {fmt(metrics.period, 3)} s<br />v_max = {fmt(metrics.maxSpeed, 2)} m/s<br />F_max = {fmt(metrics.maxForce, 2)} N</p></div>

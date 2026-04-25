@@ -16,8 +16,8 @@ const HISTORY_KEY = "physics-visualizer-history";
 const PROMPT_HELP_MESSAGE = "Intuify couldn’t confidently build a visualization from that prompt yet. Try one of the examples below.";
 const EXAMPLE_PROMPTS = [
   "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
-  "A 2 kg crate slides down a 45 degree ramp with coefficient of kinetic friction 0.1 over 4 meters.",
   "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
+  "Problem: Two point charges are placed 2 meters apart. Charge 1: +3 μC. Charge 2: −2 μC. Question: What is the magnitude of the force between them? Is the force attractive or repulsive?",
 ];
 const ATWOOD_PROMPT = "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?";
 const ATWOOD_EXAMPLE: SimulationConfig = {
@@ -41,7 +41,7 @@ const SCENARIO_LABELS: Record<string, string> = {
   pendulum: "Pendulum",
   inclined_plane: "Inclined Plane",
   free_fall: "Free Fall",
-  atwood_table: "Atwood Table",
+  atwood_table: "Atwood Machine",
   spring_mass: "Spring-Mass",
   circular_motion: "Circular Motion",
   torque: "Torque",
@@ -50,6 +50,64 @@ const SCENARIO_LABELS: Record<string, string> = {
   bernoulli: "Bernoulli Flow",
   standing_waves: "Standing Waves",
   bohr_model: "Bohr Model",
+};
+
+const GRAVITY_SCENARIOS = new Set(["projectile_motion", "pendulum", "inclined_plane", "free_fall", "atwood_table", "spring_mass", "circular_motion", "torque", "bernoulli"]);
+
+const PARAM_ORDER: Record<string, string[]> = {
+  projectile_motion: ["angle", "speed", "mass", "initial_height"],
+  collision_1d: ["mass1", "v1", "mass2", "v2", "restitution"],
+  pendulum: ["length", "initial_angle", "mass"],
+  inclined_plane: ["angle", "friction", "mass", "distance"],
+  free_fall: ["height", "mass", "air_resistance"],
+  atwood_table: ["mass1", "mass2", "friction", "distance"],
+  spring_mass: ["spring_constant", "mass", "amplitude"],
+  circular_motion: ["radius", "mass", "speed"],
+  torque: ["force", "arm_length", "mass"],
+  electric_field: ["charge1", "charge2", "charge3", "charge4"],
+  ohm_law: ["voltage", "resistance", "internal_resistance"],
+  bernoulli: ["v1", "area_ratio", "density"],
+  standing_waves: ["tension", "linear_density", "length", "harmonic"],
+  bohr_model: ["atomic_number", "n_initial", "n_final"],
+};
+
+const SLIDER_RANGES: Record<string, { min: number; max: number; step: number }> = {
+  angle: { min: 5, max: 60, step: 0.1 },
+  initial_angle: { min: 1, max: 85, step: 0.1 },
+  speed: { min: 1, max: 40, step: 0.1 },
+  mass: { min: 0.5, max: 10, step: 0.1 },
+  mass1: { min: 0.5, max: 10, step: 0.1 },
+  mass2: { min: 0.5, max: 10, step: 0.1 },
+  friction: { min: 0, max: 0.9, step: 0.01 },
+  distance: { min: 1, max: 5, step: 0.1 },
+  initial_height: { min: 0, max: 400, step: 1 },
+  height: { min: 10, max: 400, step: 1 },
+  length: { min: 0.2, max: 250, step: 0.1 },
+  v1: { min: -20, max: 20, step: 0.1 },
+  v2: { min: -20, max: 20, step: 0.1 },
+  restitution: { min: 0, max: 1, step: 0.01 },
+  air_resistance: { min: 0, max: 1, step: 0.01 },
+  spring_constant: { min: 1, max: 100, step: 1 },
+  amplitude: { min: 0.05, max: 1.5, step: 0.05 },
+  radius: { min: 0.2, max: 5, step: 0.1 },
+  force: { min: 1, max: 100, step: 1 },
+  arm_length: { min: 0.1, max: 5, step: 0.1 },
+  charge1: { min: -10, max: 10, step: 0.1 },
+  charge2: { min: -10, max: 10, step: 0.1 },
+  charge3: { min: -10, max: 10, step: 0.1 },
+  charge4: { min: -10, max: 10, step: 0.1 },
+  separation: { min: 0.1, max: 5, step: 0.1 },
+  voltage: { min: 0, max: 48, step: 0.5 },
+  resistance: { min: 1, max: 200, step: 1 },
+  internal_resistance: { min: 0, max: 20, step: 0.1 },
+  area_ratio: { min: 0.2, max: 8, step: 0.1 },
+  density: { min: 1, max: 1500, step: 1 },
+  tension: { min: 1, max: 200, step: 1 },
+  linear_density: { min: 0.001, max: 0.05, step: 0.001 },
+  harmonic: { min: 1, max: 8, step: 1 },
+  atomic_number: { min: 1, max: 10, step: 1 },
+  n_initial: { min: 2, max: 8, step: 1 },
+  n_final: { min: 1, max: 7, step: 1 },
 };
 
 function saveHistory(prompt: string, config: SimulationConfig) {
@@ -65,6 +123,14 @@ function saveHistory(prompt: string, config: SimulationConfig) {
 
 
 function paramLabel(type: string, key: string) {
+  if (key === "gravity") return <>gravity g</>;
+  if (key === "mass") return <>mass m</>;
+  if (type === "electric_field") {
+    if (key === "charge1") return <>q<sub>1</sub></>;
+    if (key === "charge2") return <>q<sub>2</sub></>;
+    if (key === "charge3") return <>q<sub>3</sub></>;
+    if (key === "charge4") return <>q<sub>4</sub></>;
+  }
   if (type === "atwood_table") {
     if (key === "mass1") return <>m<sub>1</sub></>;
     if (key === "mass2") return <>m<sub>2</sub></>;
@@ -73,6 +139,127 @@ function paramLabel(type: string, key: string) {
   }
 
   return key.replace(/_/g, " ");
+}
+
+function sliderRange(type: string, key: string) {
+  if (type === "free_fall" && key === "mass") return { min: 0.1, max: 25, step: 0.1 };
+  return SLIDER_RANGES[key] ?? { min: 0, max: 20, step: 0.1 };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function isUnsupportedHorizontalForcePrompt(prompt: string) {
+  const lower = prompt.toLowerCase();
+  const mentionsForcePush = /\b(push|pushed|pull|pulled|force)\b/.test(lower);
+  const mentionsHorizontalSurface = /\b(horizontal|surface|table|floor)\b/.test(lower);
+  const mentionsCollision = /\b(collision|collide|collides|hit|hits|crash|impact|bounce|elastic|inelastic|restitution)\b/.test(lower);
+  return mentionsForcePush && mentionsHorizontalSurface && !mentionsCollision;
+}
+
+function normalizeCollisionConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  if (config.type !== "collision_1d") return config;
+  const lower = prompt.toLowerCase();
+  const mentionsRestitution = /\b(restitution|elastic|inelastic|bouncy|bounce)\b/.test(lower);
+  const restitution = /\binelastic\b/.test(lower)
+    ? 0
+    : /\bperfectly\s+elastic\b|\belastic\b/.test(lower)
+    ? 1
+    : mentionsRestitution
+      ? clamp(config.params.restitution ?? 0, 0, 1)
+      : 0;
+
+  return {
+    ...config,
+    params: { ...config.params, restitution },
+    world: { ...config.world, friction: config.world.friction ?? 0 },
+  };
+}
+
+function electricPromptValues(prompt: string) {
+  const values: number[] = [];
+  const normalized = prompt.replace(/−/g, "-");
+  const labeled = /(?:charge|q)\s*\d*\s*:?\s*([+-]?\d+(?:\.\d+)?)\s*(?:μ|u|micro)?c/gi;
+  let match: RegExpExecArray | null;
+  while ((match = labeled.exec(normalized)) && values.length < 4) {
+    values.push(clamp(Number(match[1]), -10, 10));
+  }
+
+  const standalone = /([+-]?\d+(?:\.\d+)?)\s*(?:μ|u|micro)c/gi;
+  while ((match = standalone.exec(normalized)) && values.length < 4) {
+    const value = clamp(Number(match[1]), -10, 10);
+    if (!values.some((existing) => Math.abs(existing - value) < 0.001)) values.push(value);
+  }
+
+  const electronCount = (normalized.match(/\belectron(s)?\b/gi) ?? []).length;
+  for (let i = 0; i < electronCount && values.length < 4; i += 1) values.push(-1);
+  return values.slice(0, 4);
+}
+
+function electricPromptSeparation(prompt: string, fallback: number) {
+  const normalized = prompt.replace(/−/g, "-");
+  const match = normalized.match(/(\d+(?:\.\d+)?)\s*(?:m|meter|meters)\s*(?:apart|separated|between)?/i);
+  return match ? clamp(Number(match[1]), 0.1, 5) : fallback;
+}
+
+function normalizeElectricFieldConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  const lower = prompt.toLowerCase();
+  const electricLike = /\b(charge|charges|electron|electrons|coulomb|electric)\b/.test(lower);
+  if (config.type !== "electric_field" && !electricLike) return config;
+
+  const promptCharges = electricPromptValues(prompt);
+  const fallbackCharges = [config.params.charge1 ?? 5, config.params.charge2 ?? -3];
+  const charges = (promptCharges.length > 0 ? promptCharges : fallbackCharges).slice(0, 4);
+  if (charges.length === 1) charges.push(-3);
+
+  const params: Record<string, number> = {
+    separation: electricPromptSeparation(prompt, config.params.separation ?? 1),
+  };
+  charges.forEach((charge, index) => {
+    params[`charge${index + 1}`] = clamp(charge, -10, 10);
+  });
+
+  return {
+    type: "electric_field",
+    params,
+    world: { ...config.world, gravity: config.world.gravity ?? 9.8, friction: 0 },
+    explanationGoal: "Show how charge signs, distance, and Coulomb's law determine electric forces.",
+  };
+}
+
+function displayExplanation(config: SimulationConfig, outcome: LaunchOutcome | null, fallback: string) {
+  if (config.type === "atwood_table") {
+    const m1 = config.params.mass1;
+    const m2 = config.params.mass2;
+    const mu = config.params.friction;
+    const d = config.params.distance;
+    const g = config.world.gravity;
+    const drivingForce = m2 * g - mu * m1 * g;
+    if ([m1, m2, mu, d, g].every(Number.isFinite)) {
+      if (drivingForce <= 0) return `The Atwood Machine will not accelerate: friction (${(mu * m1 * g).toFixed(2)} N) is at least as large as the hanging pull (${(m2 * g).toFixed(2)} N). Lower μ or increase m₂.`;
+      const a = drivingForce / (m1 + m2);
+      const v = Math.sqrt(2 * a * d);
+      return `The Atwood Machine accelerates at ${a.toFixed(2)} m/s². After ${d.toFixed(1)} m, the masses reach about ${v.toFixed(2)} m/s because m₂g exceeds table friction.`;
+    }
+  }
+
+  if (config.type === "inclined_plane") {
+    const angle = config.params.angle;
+    const mu = config.params.friction;
+    const d = config.params.distance;
+    const g = config.world.gravity;
+    const theta = (angle * Math.PI) / 180;
+    const a = g * (Math.sin(theta) - mu * Math.cos(theta));
+    if ([angle, mu, d, g].every(Number.isFinite)) {
+      if (a <= 0) return `The block does not slide because friction cancels the downslope component of gravity. Increase θ or lower μ.`;
+      const v = Math.sqrt(2 * a * d);
+      return `The block slides down the incline with acceleration ${a.toFixed(2)} m/s² and reaches about ${v.toFixed(2)} m/s after ${d.toFixed(1)} m.`;
+    }
+  }
+
+  if (outcome?.launched && Object.keys(outcome.metrics).length > 0) return fallback;
+  return fallback || "Adjust the controls, then run the animation to see the computed result.";
 }
 
 export default function SimulationClient() {
@@ -123,6 +310,20 @@ export default function SimulationClient() {
     setParsing(true);
     setParseMessage("");
     try {
+      if (isUnsupportedHorizontalForcePrompt(prompt)) {
+        setParseMessage("Intuify does not have a horizontal force simulation yet. Try a collision, inclined plane, Atwood Machine, or electric field prompt.");
+        return;
+      }
+
+      if (prompt === ATWOOD_PROMPT) {
+        setConfig(ATWOOD_EXAMPLE);
+        setOutcome(null);
+        saveHistory(prompt, ATWOOD_EXAMPLE);
+        setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
+        updateShareUrl(ATWOOD_EXAMPLE);
+        return;
+      }
+
       const parsed = await parseWithAgentverse(prompt);
 
       if (!parsed || !parsed.type || !parsed.params) {
@@ -130,11 +331,12 @@ export default function SimulationClient() {
         return;
       }
 
-      setConfig(parsed);
+      const nextConfig = normalizeElectricFieldConfig(normalizeCollisionConfig(parsed, prompt), prompt);
+      setConfig(nextConfig);
       setOutcome(null);
-      saveHistory(prompt, parsed);
+      saveHistory(prompt, nextConfig);
       setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
-      updateShareUrl(parsed);
+      updateShareUrl(nextConfig);
     } catch {
       setParseMessage(PROMPT_HELP_MESSAGE);
     } finally {
@@ -164,7 +366,11 @@ export default function SimulationClient() {
 
   const shareLink = typeof window === "undefined" ? "" : window.location.href;
   const explanation = buildExplanation(config, outcome);
+  const shownExplanation = displayExplanation(config, outcome, explanation);
   const scenarioLabel = SCENARIO_LABELS[config.type] ?? config.type;
+  const paramKeys = PARAM_ORDER[config.type] ?? Object.keys(config.params);
+  const visibleParams = Object.entries(config.params).filter(([key]) => paramKeys.includes(key));
+  const showGravity = GRAVITY_SCENARIOS.has(config.type);
 
   return (
     <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
@@ -241,9 +447,9 @@ export default function SimulationClient() {
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Controls</h2>
               <div className="mt-4 space-y-5">
-                <label className="block">
+                {showGravity ? <label className="block">
                   <span className="flex justify-between text-sm font-semibold">
-                    <span>Gravity</span>
+                    <span>{paramLabel(config.type, "gravity")}</span>
                     <span>{config.world.gravity.toFixed(1)} m/s²</span>
                   </span>
                   <input
@@ -252,30 +458,33 @@ export default function SimulationClient() {
                     value={config.world.gravity}
                     onChange={(e) => updateGravity(Number(e.target.value))}
                   />
-                </label>
-                {Object.entries(config.params).map(([key, value]) => (
+                </label> : null}
+                {visibleParams.map(([key, value]) => {
+                  const range = sliderRange(config.type, key);
+                  return (
                   <label key={key} className="block">
                     <span className="flex justify-between text-sm font-semibold">
                       <span>{paramLabel(config.type, key)}</span>
-                      <span>{Number(value).toFixed(1)}</span>
+                      <span>{Number(value).toFixed(1)}{key === "mass" || key === "mass1" || key === "mass2" ? " kg" : ""}</span>
                     </span>
                     <input
                       className="mt-2 w-full"
                       type="range"
-                      min={key === "v1" || key === "v2" ? -20 : 0}
-                      max={key === "speed" ? 40 : key === "angle" || key === "initial_angle" ? 85 : key === "height" ? 400 : key === "length" ? 250 : key === "mass" || key === "mass1" || key === "mass2" ? 10 : key === "distance" ? 5 : key === "friction" ? 0.9 : 20}
-                      step={key === "friction" || key === "air_resistance" || key === "restitution" ? 0.01 : 0.1}
+                      min={range.min}
+                      max={range.max}
+                      step={range.step}
                       value={value}
                       onChange={(e) => updateParam(key, Number(e.target.value))}
                     />
                   </label>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Explanation</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-700">{explanation}</p>
+              <p className="mt-3 text-sm leading-6 text-slate-700">{shownExplanation}</p>
               {outcome?.launched && Object.keys(outcome.metrics).length > 0 ? (
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                   {Object.entries(outcome.metrics).map(([key, val]) => (
