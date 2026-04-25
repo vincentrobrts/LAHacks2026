@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --ink: #172033;
+  --paper: #f7f2ea;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(68, 145, 171, 0.18), transparent 32rem),
+    linear-gradient(135deg, #f7f2ea 0%, #eef5f1 46%, #f9f7f2 100%);
+  color: var(--ink);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.range {
+  accent-color: #216869;
+}
+
+.canvas-shell canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
