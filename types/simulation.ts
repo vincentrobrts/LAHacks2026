@@ -4,7 +4,8 @@ export type SimulationType =
   | "pendulum"
   | "inclined_plane"
   | "free_fall"
-  | "atwood_table";
+  | "atwood_table"
+  | "spring_mass";
 
 export type SimulationConfig = {
   type: SimulationType;

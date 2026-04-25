@@ -39,6 +39,12 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
     world: { gravity: 9.8, friction: 0 },
     explanationGoal: "Show how tension and gravity determine the acceleration of a two-mass pulley system.",
   },
+  spring_mass: {
+    type: "spring_mass",
+    params: { spring_constant: 20, mass: 1, amplitude: 0.5 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how spring stiffness and mass determine the period and speed of simple harmonic motion.",
+  },
 };
 
 export const DEFAULT_SIMULATION = DEFAULT_CONFIGS.inclined_plane;

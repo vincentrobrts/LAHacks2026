@@ -40,6 +40,14 @@ Params: { "angle": <5–60 deg>, "friction": <0–0.9>, "mass": <0.5–5 kg>, "d
 Use when: dropping an object, free fall, falling from height, gravity comparison.
 Params: { "height": <50–400 px, scale 1m = 10px>, "mass": <0.5–10 kg>, "air_resistance": <0–0.1, 0=vacuum> }
 
+### spring_mass
+Use when: a mass on a spring, Hooke's law, SHM, oscillation with a spring constant.
+Params: { "spring_constant": <1–100 N/m>, "mass": <0.5–5 kg>, "amplitude": <0.05–1.5 m> }
+
+### atwood_table
+Use when: Atwood machine, pulley with two masses, one on a table one hanging, connected by string.
+Params: { "mass1": <0.5–10 kg, table mass>, "mass2": <0.5–10 kg, hanging mass>, "friction": <0–0.9>, "distance": <1–5 m> }
+
 ## World parameters (always include)
 { "gravity": <1–20, Earth=9.8, Moon=1.6, Mars=3.7>, "friction": <0–1> }
 
@@ -61,6 +69,8 @@ DEFAULTS = {
     "pendulum": {"length": 150, "initial_angle": 45, "mass": 1},
     "inclined_plane": {"angle": 30, "friction": 0.2, "mass": 5, "distance": 3},
     "free_fall": {"height": 200, "mass": 1, "air_resistance": 0},
+    "spring_mass": {"spring_constant": 20, "mass": 1, "amplitude": 0.5},
+    "atwood_table": {"mass1": 4, "mass2": 2, "friction": 0, "distance": 3},
 }
 
 
@@ -175,6 +185,38 @@ def compute_results(config: dict) -> dict:
             "v1_final_m_s": round(v1f, 2),
             "v2_final_m_s": round(v2f, 2),
             "ke_lost_j": round(ke_before - ke_after, 3),
+        }
+
+    if sim_type == "spring_mass":
+        k = p["spring_constant"]
+        m = p["mass"]
+        A = p["amplitude"]
+        omega = math.sqrt(k / m)
+        period = 2 * math.pi / omega
+        return {
+            "period_s": round(period, 3),
+            "max_speed_m_s": round(omega * A, 2),
+            "max_force_n": round(k * A, 2),
+            "angular_freq_rad_s": round(omega, 3),
+        }
+
+    if sim_type == "atwood_table":
+        m1, m2 = p["mass1"], p["mass2"]
+        mu = p.get("friction", 0)
+        d = p.get("distance", 3)
+        friction_f = mu * m1 * g
+        driving = m2 * g - friction_f
+        if driving <= 0:
+            return {"moves": False, "tension_n": round(m2 * g, 2)}
+        a = driving / (m1 + m2)
+        T = m1 * a + friction_f
+        t = math.sqrt(2 * d / a)
+        return {
+            "moves": True,
+            "acceleration_m_s2": round(a, 3),
+            "tension_n": round(T, 2),
+            "time_s": round(t, 2),
+            "final_speed_m_s": round(math.sqrt(2 * a * d), 2),
         }
 
     return {}
@@ -864,4 +906,9 @@ def simulate_physics(prompt: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "sse":
+        port = int(os.environ.get("MCP_PORT", "8000"))
+        mcp.run(transport="sse", host="0.0.0.0", port=port)
+    else:
+        mcp.run()
