@@ -25,6 +25,8 @@ export type BuiltScene = {
   scene: CompoundScene;
   world: PhysicsWorld | null;
   circuitSolution: ReturnType<typeof solveCircuit> | null;
+  sceneType: "atwood" | "rampAtwood" | "springAtwood" | "doubleRamp" | "circuit" | "generic";
+  atwoodParams?: { m1: number; m2: number };
 };
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
@@ -41,8 +43,6 @@ export function buildFromParsed(parsed: ParsedCompound): BuiltScene {
   if (ramps.length >= 2 && kinds.has("pulley")) return buildDoubleRamp(parsed, ramps, pulleys[0], masses);
   if (kinds.has("ramp") && kinds.has("pulley")) return buildRampAtwood(parsed, ramps[0], pulleys[0], masses);
   if (kinds.has("pulley") && masses.length >= 2) return buildStandardAtwood(parsed, pulleys[0], masses);
-
-  // Generic fallback: treat everything as free masses
   return buildGeneric(parsed, masses);
 }
 
@@ -100,7 +100,7 @@ function buildRampAtwood(
     world,
   };
 
-  return { scene, world, circuitSolution: null };
+  return { scene, world, circuitSolution: null, sceneType: "rampAtwood" };
 }
 
 // ─── 2. Standard Atwood ───────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ function buildStandardAtwood(
     world,
   };
 
-  return { scene, world, circuitSolution: null };
+  return { scene, world, circuitSolution: null, sceneType: "atwood", atwoodParams: { m1, m2 } };
 }
 
 // ─── 3. Spring-Atwood ─────────────────────────────────────────────────────────
@@ -168,9 +168,9 @@ function buildSpringAtwood(
   const mRail = Number(railMassComp.props.mass ?? 1.5);
   const mHang = Number(hangMassComp.props.mass ?? 1);
 
-  // Keep everything at the same height (y=160) so the rope goes horizontal→vertical.
-  // This avoids diagonal rope instability on a horizontal-DOF body.
-  const PULLEY = { x: 420, y: 160 };
+  // Pulley at right side, spring anchor at left wall, all at same Y for stability.
+  // (Diagonal rope on horizontal-DOF body causes Verlet explosion — keep same Y.)
+  const PULLEY = { x: 580, y: 160 };
   const SPRING_ANCHOR = { x: 20, y: PULLEY.y };
 
   // Start rail mass at equilibrium estimate: spring extension ≈ hang tension / k_px
@@ -181,7 +181,7 @@ function buildSpringAtwood(
     SPRING_ANCHOR.x + restPx + (mHang * G_PX) / (k_px * (mRail + mHang) * 2),
   );
   const railPos = { x: eqX, y: PULLEY.y };
-  const hangPos = { x: PULLEY.x, y: PULLEY.y + 1.5 * M };
+  const hangPos = { x: PULLEY.x, y: PULLEY.y + 2 * M };
 
   const ropeLength =
     Math.hypot(railPos.x - PULLEY.x, railPos.y - PULLEY.y) +
@@ -213,7 +213,7 @@ function buildSpringAtwood(
     world,
   };
 
-  return { scene, world, circuitSolution: null };
+  return { scene, world, circuitSolution: null, sceneType: "springAtwood" };
 }
 
 // ─── 4. Double Ramp ───────────────────────────────────────────────────────────
@@ -273,7 +273,7 @@ function buildDoubleRamp(
     world,
   };
 
-  return { scene, world, circuitSolution: null };
+  return { scene, world, circuitSolution: null, sceneType: "doubleRamp" };
 }
 
 // ─── 5. Series Circuit ────────────────────────────────────────────────────────
@@ -305,7 +305,7 @@ function buildCircuit(parsed: ParsedCompound): BuiltScene {
     // no battery or bad topology
   }
 
-  return { scene, world: null, circuitSolution };
+  return { scene, world: null, circuitSolution, sceneType: "circuit" };
 }
 
 // ─── 6. Generic fallback ──────────────────────────────────────────────────────
@@ -337,5 +337,5 @@ function buildGeneric(parsed: ParsedCompound, masses: ParsedComponent[]): BuiltS
     world,
   };
 
-  return { scene, world, circuitSolution: null };
+  return { scene, world, circuitSolution: null, sceneType: "generic" };
 }
