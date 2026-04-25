@@ -1,32 +1,45 @@
-import type { SimulationConfig } from "@/types/simulation";
+import type { SimulationConfig, SimulationType } from "@/types/simulation";
 
-export const DEFAULT_PROMPT =
-  "A 5 kg block is placed on a 30 degree inclined plane. The coefficient of kinetic friction between the block and the plane is 0.2. Find the acceleration of the block as it slides down the plane, the time to travel 3 meters from rest, and the final velocity after 3 meters.";
+export const DEFAULT_PROMPT = "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.";
 
-export const DEFAULT_SIMULATION: SimulationConfig = {
-  type: "inclined_plane",
-  projectile: {
-    speed: 0,
-    angle: 30,
-    mass: 5
+export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
+  projectile_motion: {
+    type: "projectile_motion",
+    params: { angle: 38, speed: 18, mass: 1, initial_height: 0 },
+    world: { gravity: 9.8, friction: 0.1 },
+    explanationGoal: "Explain how launch angle and speed affect the range and peak height of the projectile.",
   },
-  world: {
-    gravity: 9.8,
-    towerBlocks: 0
+  collision_1d: {
+    type: "collision_1d",
+    params: { mass1: 2, v1: 5, mass2: 1, v2: -2, restitution: 0.8 },
+    world: { gravity: 9.8, friction: 0.05 },
+    explanationGoal: "Explain how momentum is conserved and how restitution affects the final velocities.",
   },
-  explanationGoal: "Explain acceleration, friction, time, and final velocity for a block sliding down an inclined plane."
+  pendulum: {
+    type: "pendulum",
+    params: { length: 150, initial_angle: 45, mass: 1 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how pendulum length and initial angle affect the period and maximum speed.",
+  },
+  inclined_plane: {
+    type: "inclined_plane",
+    params: { angle: 30, friction: 0.2, mass: 5, distance: 3 },
+    world: { gravity: 9.8, friction: 0.2 },
+    explanationGoal: "Explain how the ramp angle and friction coefficient affect how fast the block slides.",
+  },
+  free_fall: {
+    type: "free_fall",
+    params: { height: 200, mass: 1, air_resistance: 0 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how gravity and air resistance affect the time and speed of the falling object.",
+  },
 };
 
-export const PERFECT_SHOT: SimulationConfig = {
+export const DEFAULT_SIMULATION = DEFAULT_CONFIGS.inclined_plane;
+
+export const DEMO_SHOT: SimulationConfig = {
   type: "inclined_plane",
-  projectile: {
-    speed: 0,
-    angle: 30,
-    mass: 5
-  },
-  world: {
-    gravity: 9.8,
-    towerBlocks: 0
-  },
-  explanationGoal: "Explain acceleration, friction, time, and final velocity for a block sliding down an inclined plane."
+  params: { angle: 30, friction: 0.2, mass: 5, distance: 3 },
+  world: { gravity: 9.8, friction: 0.2 },
+  explanationGoal: "Explain acceleration, friction, time, and final velocity for a block sliding down an inclined plane.",
 };

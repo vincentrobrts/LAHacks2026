@@ -37,6 +37,9 @@ claude.txt
 keys.txt
 token.txt
 
+# Python agent
+agent/.venv/
+
 # Python (if you add a FastAPI backend)
 __pycache__/
 *.py[cod]

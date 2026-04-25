@@ -1,15 +1,16 @@
-export type SimulationType = "inclined_plane" | "projectile_knockdown";
+export type SimulationType =
+  | "projectile_motion"
+  | "collision_1d"
+  | "pendulum"
+  | "inclined_plane"
+  | "free_fall";
 
 export type SimulationConfig = {
   type: SimulationType;
-  projectile: {
-    speed: number;
-    angle: number;
-    mass: number;
-  };
+  params: Record<string, number>;
   world: {
     gravity: number;
-    towerBlocks: number;
+    friction: number;
   };
   explanationGoal: string;
 };
@@ -23,13 +24,6 @@ export type SimulationHistoryItem = {
 
 export type LaunchOutcome = {
   launched: boolean;
-  blocksMoved: number;
   success: boolean;
-  peakHeight: number;
-  flightDistance: number;
-  metrics?: {
-    acceleration: number;
-    timeToBottom: number | null;
-    finalSpeed: number;
-  };
+  metrics: Record<string, number>;
 };

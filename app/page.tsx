@@ -3,8 +3,8 @@
 import { ArrowRight, History, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { DEFAULT_PROMPT, PERFECT_SHOT } from "@/lib/defaults";
-import { parseInclinedPlanePrompt } from "@/lib/inclinedPrompt";
+import { parseWithAgentverse } from "@/lib/agentverse";
+import { DEFAULT_PROMPT, DEMO_SHOT } from "@/lib/defaults";
 import { encodeSimulation } from "@/lib/share";
 import type { SimulationHistoryItem } from "@/types/simulation";
 
@@ -12,7 +12,7 @@ const HISTORY_KEY = "physics-visualizer-history";
 const EXAMPLE_PROMPTS = [
   "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
   "A 2 kg crate slides down a 45 degree ramp with coefficient of kinetic friction 0.1 over 4 meters.",
-  "A 7 kg box rests on a 20 degree slope with μk = 0.5 over 2 meters."
+  "A ball is launched at 45 degrees with 20 m/s. How far does it travel?",
 ];
 
 export default function Home() {
@@ -26,22 +26,17 @@ export default function Home() {
   }, []);
 
   const start = async (perfect = false) => {
-    const parsed = perfect ? { config: PERFECT_SHOT, friction: 0.2, travelDistance: 3 } : parseInclinedPlanePrompt(prompt);
-    if (!parsed) {
-      setMessage("Intuify currently supports inclined plane problems in this demo. Try one of the examples.");
-      return;
-    }
-
-    const config = parsed.config;
+    setMessage("");
+    const config = perfect ? DEMO_SHOT : await parseWithAgentverse(prompt);
     const nextPrompt = perfect ? DEFAULT_PROMPT : prompt;
     const item: SimulationHistoryItem = {
       id: crypto.randomUUID(),
       prompt: nextPrompt,
       config,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
     localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...history].slice(0, 8)));
-    router.push(`/sim?state=${encodeSimulation(config, nextPrompt)}&friction=${parsed.friction.toFixed(2)}&distance=${parsed.travelDistance.toFixed(1)}`);
+    router.push(`/sim?state=${encodeSimulation(config, nextPrompt)}`);
   };
 
   return (
@@ -56,24 +51,21 @@ export default function Home() {
             Intuify
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">
-            Turn a textbook word problem into a live physics lab. Tune angle, friction, mass, distance, and gravity, then watch the block slide exactly according to the equations.
+            Turn a textbook word problem into a live physics lab. Tune angle, friction, mass, and gravity, then watch the simulation run according to the equations.
           </p>
 
           <div className="mt-8 rounded-lg border border-white/75 bg-white/85 p-4 shadow-glow backdrop-blur">
             <label className="text-sm font-bold uppercase tracking-wide text-slate-500">Physics word problem</label>
             <textarea
               value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
+              onChange={(event) => { setPrompt(event.target.value); setMessage(""); }}
               className="mt-3 min-h-32 w-full resize-none rounded-md border border-slate-300 bg-slate-50 p-4 text-base leading-7 outline-none transition focus:border-[#216869] focus:ring-4 focus:ring-[#216869]/15"
             />
             <div className="mt-3 grid gap-2">
               {EXAMPLE_PROMPTS.map((example, index) => (
                 <button
                   key={example}
-                  onClick={() => {
-                    setPrompt(example);
-                    setMessage("");
-                  }}
+                  onClick={() => { setPrompt(example); setMessage(""); }}
                   className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-700 transition hover:border-[#216869] hover:bg-white"
                 >
                   Example {index + 1}: {example}
@@ -87,13 +79,11 @@ export default function Home() {
               </button>
               <button onClick={() => start(true)} className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e] px-5 py-3 font-bold text-slate-950 transition hover:bg-[#e0ad36]">
                 <Sparkles size={19} />
-                Run Inclined Plane Demo
+                Run Demo
               </button>
             </div>
             {message ? (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">
-                {message}
-              </div>
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">{message}</div>
             ) : null}
           </div>
         </div>
@@ -120,9 +110,9 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-5">
-            <h2 className="text-xl font-black text-slate-950">Demo reliable by default</h2>
+            <h2 className="text-xl font-black text-slate-950">Physics from plain English</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              The parser runs locally, share links encode state in the URL, and local history keeps the last prompts on this device.
+              The AI parser extracts angle, mass, friction, and gravity from your problem automatically. Share links encode state in the URL.
             </p>
           </div>
           <div className="mt-4 rounded-md bg-slate-100 p-4">
