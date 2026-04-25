@@ -13,6 +13,27 @@ import { decodeSimulation, encodeSimulation } from "@/lib/share";
 import type { LaunchOutcome, SimulationConfig, SimulationHistoryItem } from "@/types/simulation";
 
 const HISTORY_KEY = "physics-visualizer-history";
+const PROMPT_HELP_MESSAGE = "Intuify couldn’t confidently build a visualization from that prompt yet. Try one of the examples below.";
+const EXAMPLE_PROMPTS = [
+  "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
+  "A 2 kg crate slides down a 45 degree ramp with coefficient of kinetic friction 0.1 over 4 meters.",
+  "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
+];
+const ATWOOD_PROMPT = "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?";
+const ATWOOD_EXAMPLE: SimulationConfig = {
+  type: "atwood_table",
+  params: {
+    mass1: 4,
+    mass2: 2,
+    friction: 0,
+    distance: 3,
+  },
+  world: {
+    gravity: 9.8,
+    friction: 0,
+  },
+  explanationGoal: "Show how tension and gravity determine the acceleration of a two-mass pulley system.",
+};
 
 const SCENARIO_LABELS: Record<string, string> = {
   projectile_motion: "Projectile Motion",
@@ -20,6 +41,7 @@ const SCENARIO_LABELS: Record<string, string> = {
   pendulum: "Pendulum",
   inclined_plane: "Inclined Plane",
   free_fall: "Free Fall",
+  atwood_table: "Atwood Table",
 };
 
 function saveHistory(prompt: string, config: SimulationConfig) {
@@ -31,6 +53,72 @@ function saveHistory(prompt: string, config: SimulationConfig) {
     timestamp: new Date().toISOString(),
   };
   localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...existing].slice(0, 8)));
+}
+
+function extractInclinedPlaneValues(prompt: string) {
+  const lower = prompt.toLowerCase();
+  const mass = lower.match(/(\d+(?:\.\d+)?)\s*kg\b/)?.[1];
+  const angle = lower.match(/(\d+(?:\.\d+)?)\s*(?:degree|degrees|deg)\b/)?.[1];
+  const friction =
+    lower.match(/(?:μ|mu)\s*k?\s*=\s*(\d+(?:\.\d+)?)/)?.[1] ??
+    lower.match(/coefficient\s+of\s+kinetic\s+friction\D{0,80}(\d+(?:\.\d+)?)/)?.[1] ??
+    lower.match(/friction\s+coefficient\D{0,40}(\d+(?:\.\d+)?)/)?.[1];
+  const distance =
+    lower.match(/(?:for|over|travel|travels|traveling|across)\s*(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1] ??
+    lower.match(/(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1];
+  const gravity = lower.match(/\bgravity\s*(?:is|=|of)?\s*(\d+(?:\.\d+)?)|\bg\s*=\s*(\d+(?:\.\d+)?)/);
+
+  if (!mass || !angle || !friction || !distance) return null;
+
+  return {
+    mass: Number(mass),
+    angle: Number(angle),
+    friction: Number(friction),
+    distance: Number(distance),
+    gravity: gravity ? Number(gravity[1] ?? gravity[2]) : 9.8,
+  };
+}
+
+function extractAtwoodValues(prompt: string) {
+  const lower = prompt.toLowerCase();
+  const isAtwood = /table/.test(lower) && /pulley|hanging|connected/.test(lower);
+  if (!isAtwood) return null;
+
+  const kgValues = Array.from(lower.matchAll(/(\d+(?:\.\d+)?)\s*kg\b/g)).map((match) => Number(match[1]));
+  const distance =
+    lower.match(/(?:falls|fall|moves|travels|over)\s*(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1] ??
+    lower.match(/(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1];
+  const friction =
+    lower.includes("frictionless")
+      ? "0"
+      : lower.match(/(?:μ|mu)\s*=\s*(\d+(?:\.\d+)?)/)?.[1] ??
+        lower.match(/friction\D{0,40}(\d+(?:\.\d+)?)/)?.[1];
+  const gravity = lower.match(/\bgravity\s*(?:is|=|of)?\s*(\d+(?:\.\d+)?)\b|\bg\s*=\s*(\d+(?:\.\d+)?)/);
+
+  if (kgValues.length < 2 || !distance || friction === undefined) return null;
+
+  return {
+    mass1: kgValues[0],
+    mass2: kgValues[1],
+    friction: Number(friction),
+    distance: Number(distance),
+    gravity: gravity ? Number(gravity[1] ?? gravity[2]) : 9.8,
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function paramLabel(type: string, key: string) {
+  if (type === "atwood_table") {
+    if (key === "mass1") return <>m<sub>1</sub></>;
+    if (key === "mass2") return <>m<sub>2</sub></>;
+    if (key === "friction") return <>friction μ</>;
+    if (key === "distance") return <>distance d</>;
+  }
+
+  return key.replace(/_/g, " ");
 }
 
 export default function SimulationClient() {
@@ -60,6 +148,7 @@ export default function SimulationClient() {
     const next: SimulationConfig = {
       ...config,
       params: { ...config.params, [key]: value },
+      world: key === "friction" ? { ...config.world, friction: value } : config.world,
     };
     setConfig(next);
     setOutcome(null);
@@ -80,13 +169,62 @@ export default function SimulationClient() {
     setParsing(true);
     setParseMessage("");
     try {
+      const atwood = extractAtwoodValues(prompt);
+      if (atwood) {
+        const nextConfig: SimulationConfig = {
+          type: "atwood_table",
+          params: {
+            mass1: clamp(atwood.mass1, 0.5, 10),
+            mass2: clamp(atwood.mass2, 0.5, 10),
+            friction: clamp(atwood.friction, 0, 0.9),
+            distance: clamp(atwood.distance, 1, 5),
+          },
+          world: {
+            gravity: clamp(atwood.gravity, 1, 20),
+            friction: clamp(atwood.friction, 0, 0.9),
+          },
+          explanationGoal: "Show how tension and gravity determine the acceleration of a two-mass pulley system.",
+        };
+
+        setConfig(nextConfig);
+        setOutcome(null);
+        saveHistory(prompt, nextConfig);
+        setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
+        updateShareUrl(nextConfig);
+        return;
+      }
+
       const parsed = await parseWithAgentverse(prompt);
-      setConfig(parsed);
+      const extracted = extractInclinedPlaneValues(prompt);
+
+      if (parsed.type !== "inclined_plane" || !extracted) {
+        setParseMessage(PROMPT_HELP_MESSAGE);
+        return;
+      }
+
+      const nextConfig: SimulationConfig = {
+        ...parsed,
+        params: {
+          ...parsed.params,
+          mass: clamp(extracted.mass, 0.5, 10),
+          angle: clamp(extracted.angle, 5, 60),
+          friction: clamp(extracted.friction, 0, 0.9),
+          distance: clamp(extracted.distance, 1, 5),
+        },
+        world: {
+          ...parsed.world,
+          gravity: clamp(extracted.gravity, 1, 20),
+          friction: clamp(extracted.friction, 0, 0.9),
+        },
+      };
+
+      setConfig(nextConfig);
       setOutcome(null);
-      saveHistory(prompt, parsed);
+      saveHistory(prompt, nextConfig);
       setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
-      updateShareUrl(parsed);
-      setParseMessage("Parsed successfully.");
+      updateShareUrl(nextConfig);
+    } catch {
+      setParseMessage(PROMPT_HELP_MESSAGE);
     } finally {
       setParsing(false);
     }
@@ -100,6 +238,16 @@ export default function SimulationClient() {
     saveHistory(nextPrompt, DEMO_SHOT);
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
     updateShareUrl(DEMO_SHOT, nextPrompt);
+  };
+
+  const loadAtwoodExample = () => {
+    setPrompt(ATWOOD_PROMPT);
+    setConfig(ATWOOD_EXAMPLE);
+    setOutcome(null);
+    setParseMessage("");
+    saveHistory(ATWOOD_PROMPT, ATWOOD_EXAMPLE);
+    setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
+    updateShareUrl(ATWOOD_EXAMPLE, ATWOOD_PROMPT);
   };
 
   const shareLink = typeof window === "undefined" ? "" : window.location.href;
@@ -138,6 +286,23 @@ export default function SimulationClient() {
                 onChange={(event) => setPrompt(event.target.value)}
                 className="mt-3 min-h-28 w-full resize-none rounded-md border border-slate-300 bg-slate-50 p-3 text-sm leading-6 outline-none focus:border-[#216869] focus:ring-2 focus:ring-[#216869]/20"
               />
+              {parseMessage ? (
+                <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">{parseMessage}</p>
+              ) : null}
+              <div className="mt-3 space-y-2">
+                {EXAMPLE_PROMPTS.map((example, index) => (
+                  <button
+                    key={example}
+                    onClick={() => {
+                      setPrompt(example);
+                      setParseMessage("");
+                    }}
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-700 transition hover:border-[#216869] hover:bg-white"
+                  >
+                    Example {index + 1}: {example}
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={reparse}
                 disabled={parsing}
@@ -146,19 +311,18 @@ export default function SimulationClient() {
                 <Clipboard size={17} />
                 {parsing ? "Parsing…" : "Build Simulation"}
               </button>
-              {parseMessage ? (
-                <p className="mt-2 text-xs font-semibold text-[#216869]">{parseMessage}</p>
-              ) : null}
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Parsed JSON</h2>
-              <pre className="mt-3 max-h-[420px] overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-emerald-100">{parserJson(config)}</pre>
+              <details className="rounded-md border border-slate-200 bg-white">
+                <summary className="cursor-pointer px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-500">Developer details</summary>
+                <pre className="max-h-72 overflow-auto border-t border-slate-200 bg-slate-950 p-3 text-xs leading-5 text-emerald-100">{parserJson(config)}</pre>
+              </details>
             </section>
           </aside>
 
           <section>
-            <MatterScene config={config} onOutcome={setOutcome} />
+            <MatterScene config={config} onOutcome={setOutcome} onLoadAtwoodExample={loadAtwoodExample} />
           </section>
 
           <aside className="space-y-4">
@@ -180,14 +344,14 @@ export default function SimulationClient() {
                 {Object.entries(config.params).map(([key, value]) => (
                   <label key={key} className="block">
                     <span className="flex justify-between text-sm font-semibold">
-                      <span>{key.replace(/_/g, " ")}</span>
+                      <span>{paramLabel(config.type, key)}</span>
                       <span>{Number(value).toFixed(1)}</span>
                     </span>
                     <input
                       className="mt-2 w-full"
                       type="range"
                       min={key === "v1" || key === "v2" ? -20 : 0}
-                      max={key === "speed" ? 40 : key === "angle" || key === "initial_angle" ? 85 : key === "height" ? 400 : key === "length" ? 250 : key === "mass" || key === "mass1" || key === "mass2" ? 10 : key === "distance" ? 5 : 20}
+                      max={key === "speed" ? 40 : key === "angle" || key === "initial_angle" ? 85 : key === "height" ? 400 : key === "length" ? 250 : key === "mass" || key === "mass1" || key === "mass2" ? 10 : key === "distance" ? 5 : key === "friction" ? 0.9 : 20}
                       step={key === "friction" || key === "air_resistance" || key === "restitution" ? 0.01 : 0.1}
                       value={value}
                       onChange={(e) => updateParam(key, Number(e.target.value))}

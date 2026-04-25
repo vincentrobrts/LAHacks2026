@@ -3,7 +3,8 @@ export type SimulationType =
   | "collision_1d"
   | "pendulum"
   | "inclined_plane"
-  | "free_fall";
+  | "free_fall"
+  | "atwood_table";
 
 export type SimulationConfig = {
   type: SimulationType;
