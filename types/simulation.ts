@@ -12,7 +12,8 @@ export type SimulationType =
   | "ohm_law"
   | "bernoulli"
   | "standing_waves"
-  | "bohr_model";
+  | "bohr_model"
+  | "pulley";
 
 export type SimulationConfig = {
   type: SimulationType;

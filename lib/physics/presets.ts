@@ -69,7 +69,7 @@ export const rampAtwood: CompoundScene = {
 // rope over pulley at (400,150), 1 kg hanging.
 
 // Spring and pulley at same height so rope goes horizontal→vertical (numerically stable)
-const SPRING_PULLEY = { x: 420, y: 160 };
+const SPRING_PULLEY = { x: 580, y: 160 };
 const SPRING_ANCHOR = { x: 20, y: SPRING_PULLEY.y };
 const SPRING_REST_PX = 0.5 * M; // 30 px
 const SPRING_K_PX = 30 / M; // 0.5 N/px

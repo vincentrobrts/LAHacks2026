@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import CustomScene, { buildWorldFromScene } from "@/components/scenes/CustomScene";
+import PulleyScene from "@/components/scenes/PulleyScene";
 import { buildFromParsed } from "@/lib/physics/builder";
 import { solveCircuit } from "@/lib/physics/presets";
 import type { BuiltScene } from "@/lib/physics/builder";
@@ -272,7 +273,23 @@ function CompoundPageInner() {
             </div>
 
             {/* Simulation or circuit */}
-            {built.world ? (
+            {built.sceneType === "atwood" && built.atwoodParams ? (
+              <PulleyScene
+                key={`${built.scene.id}-${sceneKey}`}
+                config={{
+                  type: "pulley",
+                  params: {
+                    mass1: built.atwoodParams.m1,
+                    mass2: built.atwoodParams.m2,
+                    radius: 0.15,
+                    pulley_mass: 0.5,
+                  },
+                  world: { gravity: 9.8, friction: 0 },
+                  explanationGoal: "Show how mass difference drives acceleration in an Atwood machine.",
+                }}
+                onOutcome={setOutcome}
+              />
+            ) : built.world ? (
               <CustomScene
                 key={`${built.scene.id}-${sceneKey}`}
                 scene={built.scene}
