@@ -1,0 +1,103 @@
+Simple simulations (paste on home page or /sim):
+
+Projectile Motion
+
+A ball is launched at 45 degrees at 25 m/s. How far does it travel?
+A cannonball fires at 30° with initial speed 40 m/s under Mars gravity (3.7 m/s²).
+
+Collision
+
+A 3 kg cart moving at 5 m/s collides elastically with a 1 kg cart at rest.
+A 2 kg ball at 8 m/s hits a 4 kg block at -2 m/s. Perfectly inelastic collision.
+
+Pendulum
+
+A pendulum 1.5 meters long is released from 30 degrees. What is its period?
+A 2 kg bob on a 0.8 m string, released at 45 degrees.
+
+Inclined Plane
+
+A 5 kg block slides down a 30 degree ramp with friction μk=0.2 for 3 meters.
+A 10 kg crate on a 40° frictionless ramp, how fast at the bottom?
+
+Free Fall
+
+A ball is dropped from 50 meters. When does it hit the ground?
+A 2 kg rock falls from 80 meters with air resistance 0.1.
+
+Atwood Table
+
+A 4 kg block on a frictionless table is connected by rope over a pulley to a 2 kg hanging mass.
+
+Spring-Mass
+
+A 1.5 kg mass on a spring with k=25 N/m is pulled 0.4 m and released.
+A 0.5 kg block on a spring constant 50 N/m, amplitude 0.2 m.
+
+Circular Motion
+
+A 2 kg ball swings in a circle of radius 0.8 m at 4 m/s. What is the centripetal force?
+A 500 g object orbits at r=1.2 m, v=6 m/s.
+
+Torque
+
+A 10 N force applied 0.5 m from a pivot on a 2 kg rod. Find the angular acceleration.
+A 3 kg rod, 80 N applied at 1.2 m from the pivot.
+
+Electric Field
+
+Two charges: +5 μC and -3 μC separated by 0.8 m. Find Coulomb force.
++10 μC and +10 μC separated by 0.5 m.
+
+Ohm's Law
+
+A 9V battery with internal resistance 0.5 Ω drives a 10 Ω resistor. Find current and power.
+12V battery, r=1 Ω, external R=20 Ω.
+
+Bernoulli
+
+Water flows at 2 m/s through a pipe that narrows to half its area. What is the pressure drop?
+Fluid at 3 m/s enters a pipe with area ratio 4. Find exit velocity.
+
+Standing Waves
+
+A string of length 2 m, tension 80 N, linear density 0.01 kg/m. Find the 3rd harmonic frequency.
+Guitar string 0.65 m, T=120 N, μ=0.005 kg/m, 2nd harmonic.
+
+Bohr Model
+
+Hydrogen atom electron drops from n=4 to n=2. What wavelength is emitted?
+Helium ion (Z=2) transitions from n=3 to n=1.
+
+
+
+
+
+
+
+Compound Lab (paste at /compound or any page — auto-routes):
+
+Ramp-Atwood
+
+A 3 kg mass on a 30° ramp with friction μ=0.2 is connected by rope over a pulley to a 2 kg hanging mass.
+A 5 kg block on a 45 degree frictionless incline connected over a pulley to a 4 kg hanging weight.
+
+Standard Atwood
+
+Two masses 5 kg and 3 kg hang on either side of a frictionless pulley.
+An Atwood machine with 8 kg on the left and 6 kg on the right.
+
+Spring-Atwood
+
+A spring with k=40 N/m connects a wall to a 2 kg block on a horizontal rail. A rope over a pulley connects the block to a 1.5 kg hanging mass.
+
+Double Ramp
+
+A 4 kg mass on a 40° ramp is connected by rope over a pulley to a 2 kg mass on a 20° ramp.
+A 6 kg block on a 50 degree ramp versus a 3 kg block on a 25 degree ramp, connected over a pulley.
+
+Circuits
+
+A 9V battery in series with a 10 ohm and 20 ohm resistor.
+12V battery with R1=5Ω, R2=10Ω, R3=15Ω in series.
+A 6 volt battery connected to three resistors: 4Ω, 8Ω, and 12Ω in series.

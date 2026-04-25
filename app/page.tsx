@@ -1,6 +1,8 @@
 "use client";
 
 import { ArrowRight, History } from "lucide-react";
+import { ArrowRight, History, Sparkles, Layers } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { parseWithAgentverse } from "@/lib/agentverse";
@@ -28,9 +30,27 @@ export default function Home() {
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
   }, []);
 
+  const isCompoundPrompt = (text: string) => {
+    const t = text.toLowerCase();
+    // Circuit: needs "series" or multiple labeled resistors (R1/R2) — not just battery+one resistor
+    const multiResistor = (t.match(/\br\d+\b/g) ?? []).length >= 2 || t.includes(" series");
+    // Pulley: compound only when a ramp or spring is also involved — table+pulley is simple atwood_table
+    const compoundPulley = t.includes("pulley") && (t.includes("ramp") || t.includes("spring"));
+    return (
+      compoundPulley ||
+      (t.includes("ramp") && t.includes("connected")) ||
+      multiResistor ||
+      (t.includes("spring") && t.includes("pulley"))
+    );
+  };
+
   const start = async (perfect = false) => {
     setMessage("");
-    const config = perfect ? DEMO_SHOT : prompt === ATWOOD_PROMPT ? DEFAULT_CONFIGS.atwood_table : await parseWithAgentverse(prompt);
+    if (!perfect && isCompoundPrompt(prompt)) {
+      router.push(`/compound?prompt=${encodeURIComponent(prompt)}`);
+      return;
+    }
+    const config = perfect ? DEMO_SHOT : await parseWithAgentverse(prompt);
     const nextPrompt = perfect ? DEFAULT_PROMPT : prompt;
     const item: SimulationHistoryItem = {
       id: crypto.randomUUID(),

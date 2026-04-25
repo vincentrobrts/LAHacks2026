@@ -19,6 +19,7 @@ const VALID_TYPES: SimulationType[] = [
   "bernoulli",
   "standing_waves",
   "bohr_model",
+  "pulley",
 ];
 
 const SYSTEM_PROMPT = `You are a physics simulation configurator. Given a physics problem or scenario in natural language, identify which simulation type best fits, extract the relevant parameters, and output ONLY valid JSON — no explanation, no markdown, no code blocks.
@@ -81,6 +82,10 @@ Params: { "tension": <1–100 N>, "linear_density": <0.001–0.01 kg/m>, "length
 Use when: Bohr model, hydrogen atom, electron energy levels, photon emission, spectral lines.
 Params: { "atomic_number": <1–10>, "n_initial": <1–7>, "n_final": <1–6> }
 
+### pulley
+Use when: fixed pulley, Atwood machine, pulley radius, rotational inertia of wheel, two masses over a single pulley.
+Params: { "mass1": <0.5–20 kg>, "mass2": <0.5–20 kg>, "radius": <0.05–0.5 m>, "pulley_mass": <0.1–5 kg> }
+
 ## World parameters (always include)
 { "gravity": <1–20, Earth=9.8, Moon=1.6, Mars=3.7>, "friction": <0–1> }
 
@@ -138,7 +143,7 @@ export async function POST(req: NextRequest) {
   try {
     const groq = new Groq({ apiKey });
     const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: prompt },
