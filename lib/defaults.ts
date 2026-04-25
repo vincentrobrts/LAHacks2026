@@ -33,6 +33,12 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
     world: { gravity: 9.8, friction: 0 },
     explanationGoal: "Explain how gravity and air resistance affect the time and speed of the falling object.",
   },
+  atwood_table: {
+    type: "atwood_table",
+    params: { mass1: 4, mass2: 2, friction: 0, distance: 3 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Show how tension and gravity determine the acceleration of a two-mass pulley system.",
+  },
 };
 
 export const DEFAULT_SIMULATION = DEFAULT_CONFIGS.inclined_plane;
