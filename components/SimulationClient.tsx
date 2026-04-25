@@ -121,11 +121,14 @@ export default function SimulationClient() {
 
   const isCompoundPrompt = (text: string) => {
     const t = text.toLowerCase();
+    // Multi-component circuit: needs battery + resistor together, or "series", or R1/R2 notation
+    const multiResistor = (t.match(/\br\d+\b/g) ?? []).length >= 2 || t.includes("series");
+    const compoundCircuit = multiResistor || (t.includes("battery") && t.includes("resistor"));
     return (
       (t.includes("pulley") && (t.includes("ramp") || t.includes("hanging") || t.includes("spring") || t.includes("connected"))) ||
       (t.includes("ramp") && t.includes("connected")) ||
       t.includes("atwood") ||
-      t.includes("battery") || t.includes("resistor") || t.includes("capacitor") || t.includes("circuit") ||
+      compoundCircuit ||
       (t.includes("spring") && t.includes("pulley"))
     );
   };

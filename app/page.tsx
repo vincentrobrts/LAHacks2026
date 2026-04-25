@@ -31,14 +31,14 @@ export default function Home() {
 
   const isCompoundPrompt = (text: string) => {
     const t = text.toLowerCase();
+    // Circuit: needs "series" or multiple labeled resistors (R1/R2) — not just battery+one resistor
+    const multiResistor = (t.match(/\br\d+\b/g) ?? []).length >= 2 || t.includes(" series");
+    // Pulley: compound only when a ramp or spring is also involved — table+pulley is simple atwood_table
+    const compoundPulley = t.includes("pulley") && (t.includes("ramp") || t.includes("spring"));
     return (
-      (t.includes("pulley") && (t.includes("ramp") || t.includes("hanging") || t.includes("spring") || t.includes("connected"))) ||
+      compoundPulley ||
       (t.includes("ramp") && t.includes("connected")) ||
-      t.includes("atwood") ||
-      t.includes("battery") ||
-      t.includes("resistor") ||
-      t.includes("capacitor") ||
-      t.includes("circuit") ||
+      multiResistor ||
       (t.includes("spring") && t.includes("pulley"))
     );
   };
