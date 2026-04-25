@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw, Target, Zap } from "lucide-react";
+import { RotateCcw, Zap } from "lucide-react";
 import type { LaunchOutcome, SimulationConfig } from "@/types/simulation";
 
 export type SceneProps = {
@@ -41,7 +41,7 @@ export function GuidedBreakdown({
 }) {
   const copy = steps[step - 1];
   return (
-    <section className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+    <section className="mt-3 rounded-md bg-white/70 p-3 ring-1 ring-slate-200/50">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
           <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Guided Breakdown</div>
@@ -66,8 +66,8 @@ export function GuidedBreakdown({
           </button>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <div className="rounded-md bg-slate-100 p-4 text-sm font-bold leading-6 text-slate-900">{copy.equation}</div>
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <div className="rounded-md bg-slate-100 p-3 text-sm font-bold leading-6 text-slate-900">{copy.equation}</div>
         <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700">
           <span className="font-bold text-slate-950">Notice:</span> {copy.notice}
         </p>
@@ -93,26 +93,22 @@ export function SceneActions({
   runningLabel?: string;
 }) {
   return (
-    <div className="mt-4 flex flex-wrap gap-3">
+    <div className="mt-3 flex flex-wrap items-center gap-3">
       <button
         onClick={onRun}
         disabled={running}
-        className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"
+        className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"
       >
         <Zap size={18} />
         {running ? runningLabel : runLabel}
       </button>
       <button
         onClick={onReset}
-        className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:bg-slate-50"
+        className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white/80 px-4 py-2 font-semibold text-slate-800 transition hover:bg-white"
       >
         <RotateCcw size={18} />
         Reset
       </button>
-      <div className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e]/20 px-3 py-2 text-sm font-semibold text-slate-800">
-        <Target size={17} />
-        Textbook Equations
-      </div>
     </div>
   );
 }
@@ -127,8 +123,8 @@ export function InfoPanels({
   results: [string, string, string?][];
 }) {
   return (
-    <div className="mt-4 grid gap-3 lg:grid-cols-2">
-      <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
+    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+      <section className="rounded-md bg-slate-50/80 p-3 ring-1 ring-slate-200/50">
         <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
         <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
           <div>
@@ -165,7 +161,7 @@ export function InfoPanels({
           </div>
         </div>
       </section>
-      <section className="rounded-md border border-slate-200 bg-white p-4">
+      <section className="rounded-md bg-white/75 p-3 ring-1 ring-slate-200/50">
         <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Results</h3>
         <div className="mt-3 space-y-2 text-sm">
           {results.map(([k, v, color]) => (

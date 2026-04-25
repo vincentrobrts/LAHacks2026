@@ -1,72 +1,40 @@
 # Intuify
 
-Intuify is a polished LA Hacks 2026 MVP that turns a textbook physics word problem into an interactive frontend simulation. The main reliable demo is an inclined-plane problem:
+Turn physics word problems into interactive simulations.
 
-> A 5 kg block is placed on a 30 degree inclined plane. The coefficient of kinetic friction between the block and the plane is 0.2. Find the acceleration of the block as it slides down the plane, the time to travel 3 meters from rest, and the final velocity after 3 meters.
+Intuify takes plain English physics problems and instantly turns them into visual, interactive models. Instead of solving equations in isolation, you can see how the system behaves, adjust variables in real time, and understand the reasoning step by step.
 
-The app uses a local rule-based parser, React, TypeScript, Tailwind, localStorage history, and URL-encoded share links. The inclined-plane demo uses direct kinematics for educational correctness.
+## How It Works
 
-## Setup
+1. Enter a physics word problem  
+2. The system extracts key variables  
+3. A live simulation is generated  
+4. Adjust parameters and watch the physics update  
+5. Follow the guided breakdown to understand why it works  
 
-```bash
-npm install
-npm run dev
-```
+## Why It Matters
 
-Open [http://localhost:3000](http://localhost:3000).
+Physics is difficult because it’s abstract.
 
-## Demo Flow
+Students are expected to imagine motion, forces, and interactions from text alone. Intuify bridges that gap by turning those problems into something you can actually see and interact with.
 
-1. Enter or use the default inclined-plane prompt.
-2. Click **Build Simulation**.
-3. Inspect the original prompt and parsed JSON.
-4. Adjust angle, friction, mass, travel distance, and gravity.
-5. Click **Run Animation** to slide the block down the ramp.
-6. Read the result panel for acceleration, time, and final velocity.
-7. Copy the share link to preserve the prompt and simulation state in the URL.
+## Key Features
+
+- Natural language → simulation
+- Real-time interactive controls
+- Live-updating results
+- Step-by-step guided explanations
+- Visual connection between equations and motion
 
 ## Architecture
 
-```text
-Prompt
-  -> local parser abstraction
-  -> SimulationConfig JSON
-  -> Next.js / React UI
-  -> inclined-plane kinematics scene
-  -> explanation + local history + share URL
-```
+User Prompt → AI Parsing → Structured Config → Simulation Engine → Visualization + Explanation
 
-Important files:
+## Built For
 
-- `app/page.tsx` - polished landing/input page.
-- `app/sim/page.tsx` - simulation route shell.
-- `components/SimulationClient.tsx` - panels, controls, history, sharing, explanation.
-- `components/MatterScene.tsx` - inclined-plane scene plus projectile fallback.
-- `lib/parser.ts` - local rule-based parser that outputs the simulation schema.
-- `lib/agentverse.ts` - placeholder for future Fetch.ai Agentverse parser integration.
-- `types/simulation.ts` - shared simulation schema.
+LA Hacks 2026
 
-## Inclined-Plane Equations
+## Team
 
-```text
-N = mg cos θ
-F<sub>f</sub> = μₖN
-a = g(sin θ − μₖ cos θ)
-t = sqrt(2d / a)
-v = sqrt(2ad)
-```
-
-If acceleration is less than or equal to zero, the visualization explains that friction prevents the block from sliding.
-
-## Agentverse Integration Notes
-
-The MVP works fully without external APIs. Later, `lib/agentverse.ts` can call a deployed Agentverse/Fetch.ai Physics Parser Agent. That agent should return JSON matching `SimulationConfig` exactly, so the frontend renderer does not need to change.
-
-Deferred from the MVP:
-
-- PyBullet
-- FastAPI backend
-- WebSocket streaming
-- full multi-agent orchestration
-- accounts or databases
-- additional physics scenarios
+Person A — AI + backend  
+Person B — frontend + simulation + UI/UX
