@@ -1,4 +1,4 @@
-export type SimulationType = "projectile_knockdown";
+export type SimulationType = "inclined_plane" | "projectile_knockdown";
 
 export type SimulationConfig = {
   type: SimulationType;
@@ -27,4 +27,9 @@ export type LaunchOutcome = {
   success: boolean;
   peakHeight: number;
   flightDistance: number;
+  metrics?: {
+    acceleration: number;
+    timeToBottom: number | null;
+    finalSpeed: number;
+  };
 };

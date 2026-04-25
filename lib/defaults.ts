@@ -1,31 +1,32 @@
 import type { SimulationConfig } from "@/types/simulation";
 
-export const DEFAULT_PROMPT = "Can I knock down the tower with one shot?";
+export const DEFAULT_PROMPT =
+  "A 5 kg block is placed on a 30 degree inclined plane. The coefficient of kinetic friction between the block and the plane is 0.2. Find the acceleration of the block as it slides down the plane, the time to travel 3 meters from rest, and the final velocity after 3 meters.";
 
 export const DEFAULT_SIMULATION: SimulationConfig = {
-  type: "projectile_knockdown",
+  type: "inclined_plane",
   projectile: {
-    speed: 18,
-    angle: 38,
-    mass: 1
+    speed: 0,
+    angle: 30,
+    mass: 5
   },
   world: {
     gravity: 9.8,
-    towerBlocks: 8
+    towerBlocks: 0
   },
-  explanationGoal: "Explain how launch angle and speed affect the projectile path."
+  explanationGoal: "Explain acceleration, friction, time, and final velocity for a block sliding down an inclined plane."
 };
 
 export const PERFECT_SHOT: SimulationConfig = {
-  type: "projectile_knockdown",
+  type: "inclined_plane",
   projectile: {
-    speed: 24,
-    angle: 27,
-    mass: 1.4
+    speed: 0,
+    angle: 30,
+    mass: 5
   },
   world: {
     gravity: 9.8,
-    towerBlocks: 8
+    towerBlocks: 0
   },
-  explanationGoal: "Explain why this launch has enough horizontal speed to topple the tower."
+  explanationGoal: "Explain acceleration, friction, time, and final velocity for a block sliding down an inclined plane."
 };

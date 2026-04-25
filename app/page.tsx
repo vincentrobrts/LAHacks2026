@@ -3,25 +3,37 @@
 import { ArrowRight, History, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { parseWithAgentverse } from "@/lib/agentverse";
 import { DEFAULT_PROMPT, PERFECT_SHOT } from "@/lib/defaults";
+import { parseInclinedPlanePrompt } from "@/lib/inclinedPrompt";
 import { encodeSimulation } from "@/lib/share";
 import type { SimulationHistoryItem } from "@/types/simulation";
 
 const HISTORY_KEY = "physics-visualizer-history";
+const EXAMPLE_PROMPTS = [
+  "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
+  "A 2 kg crate slides down a 45 degree ramp with coefficient of kinetic friction 0.1 over 4 meters.",
+  "A 7 kg box rests on a 20 degree slope with μk = 0.5 over 2 meters."
+];
 
 export default function Home() {
   const router = useRouter();
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
   }, []);
 
   const start = async (perfect = false) => {
-    const config = perfect ? PERFECT_SHOT : await parseWithAgentverse(prompt);
-    const nextPrompt = perfect ? "Run Perfect Shot demo" : prompt;
+    const parsed = perfect ? { config: PERFECT_SHOT, friction: 0.2, travelDistance: 3 } : parseInclinedPlanePrompt(prompt);
+    if (!parsed) {
+      setMessage("Intuify currently supports inclined plane problems in this demo. Try one of the examples.");
+      return;
+    }
+
+    const config = parsed.config;
+    const nextPrompt = perfect ? DEFAULT_PROMPT : prompt;
     const item: SimulationHistoryItem = {
       id: crypto.randomUUID(),
       prompt: nextPrompt,
@@ -29,7 +41,7 @@ export default function Home() {
       timestamp: new Date().toISOString()
     };
     localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...history].slice(0, 8)));
-    router.push(`/sim?state=${encodeSimulation(config, nextPrompt)}`);
+    router.push(`/sim?state=${encodeSimulation(config, nextPrompt)}&friction=${parsed.friction.toFixed(2)}&distance=${parsed.travelDistance.toFixed(1)}`);
   };
 
   return (
@@ -41,10 +53,10 @@ export default function Home() {
             LA Hacks 2026 demo MVP
           </div>
           <h1 className="max-w-3xl text-5xl font-black leading-tight text-slate-950 sm:text-6xl">
-            Physics Visualizer
+            Intuify
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">
-            Turn a word problem into a live projectile-motion lab. Tune speed, angle, and gravity, then watch Matter.js decide whether one shot can topple the tower.
+            Turn a textbook word problem into a live physics lab. Tune angle, friction, mass, distance, and gravity, then watch the block slide exactly according to the equations.
           </p>
 
           <div className="mt-8 rounded-lg border border-white/75 bg-white/85 p-4 shadow-glow backdrop-blur">
@@ -54,6 +66,20 @@ export default function Home() {
               onChange={(event) => setPrompt(event.target.value)}
               className="mt-3 min-h-32 w-full resize-none rounded-md border border-slate-300 bg-slate-50 p-4 text-base leading-7 outline-none transition focus:border-[#216869] focus:ring-4 focus:ring-[#216869]/15"
             />
+            <div className="mt-3 grid gap-2">
+              {EXAMPLE_PROMPTS.map((example, index) => (
+                <button
+                  key={example}
+                  onClick={() => {
+                    setPrompt(example);
+                    setMessage("");
+                  }}
+                  className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-700 transition hover:border-[#216869] hover:bg-white"
+                >
+                  Example {index + 1}: {example}
+                </button>
+              ))}
+            </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button onClick={() => start(false)} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-5 py-3 font-bold text-white shadow-sm transition hover:bg-[#1a5556]">
                 Build Simulation
@@ -61,33 +87,35 @@ export default function Home() {
               </button>
               <button onClick={() => start(true)} className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e] px-5 py-3 font-bold text-slate-950 transition hover:bg-[#e0ad36]">
                 <Sparkles size={19} />
-                Run Perfect Shot
+                Run Inclined Plane Demo
               </button>
             </div>
+            {message ? (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">
+                {message}
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-glow">
           <div className="aspect-[1.08] overflow-hidden rounded-md bg-[#eef5f1] p-5">
-            <div className="relative h-full rounded-md border-b-8 border-[#2f3d3f]">
-              <svg viewBox="0 0 420 380" className="h-full w-full" role="img" aria-label="Projectile tower preview">
-                <path d="M48 282 C150 105, 255 95, 344 208" fill="none" stroke="#216869" strokeWidth="6" strokeDasharray="12 12" strokeLinecap="round" />
-                <line x1="42" y1="318" x2="92" y2="286" stroke="#172033" strokeWidth="10" strokeLinecap="round" />
-                <circle cx="74" cy="292" r="20" fill="#eef5f1" stroke="#172033" strokeWidth="7" />
-                {Array.from({ length: 8 }).map((_, row) =>
-                  Array.from({ length: row < 4 ? 3 : 2 }).map((__, col) => (
-                    <rect
-                      key={`${row}-${col}`}
-                      x={286 + col * 37 - (row < 4 ? 18 : 0)}
-                      y={292 - row * 24}
-                      width="34"
-                      height="20"
-                      rx="3"
-                      fill={row % 2 === 0 ? "#d7603d" : "#f0a23d"}
-                    />
-                  ))
-                )}
-                <circle cx="48" cy="282" r="15" fill="#216869" />
+            <div className="relative h-full rounded-md">
+              <svg viewBox="0 0 420 380" className="h-full w-full" role="img" aria-label="Inclined plane preview">
+                <path d="M72 304 L354 304 L354 142 Z" fill="#dfe8e4" stroke="#172033" strokeWidth="5" />
+                <path d="M72 304 L354 142" stroke="#172033" strokeWidth="8" strokeLinecap="round" />
+                <g transform="translate(184 240) rotate(-30)">
+                  <rect x="-35" y="-23" width="70" height="46" rx="6" fill="#216869" />
+                  <rect x="-25" y="-13" width="50" height="26" rx="4" fill="#2e8b88" />
+                </g>
+                <line x1="184" y1="240" x2="184" y2="318" stroke="#c2410c" strokeWidth="5" strokeLinecap="round" />
+                <line x1="184" y1="240" x2="224" y2="171" stroke="#1d4ed8" strokeWidth="5" strokeLinecap="round" />
+                <line x1="184" y1="240" x2="118" y2="278" stroke="#7c3aed" strokeWidth="5" strokeLinecap="round" />
+                <line x1="196" y1="262" x2="272" y2="218" stroke="#15803d" strokeWidth="5" strokeLinecap="round" />
+                <path d="M262 304 A72 72 0 0 0 292 249" fill="none" stroke="#f2c14e" strokeWidth="5" />
+                <text x="238" y="292" fill="#172033" fontSize="18" fontWeight="800">30 deg</text>
+                <text x="42" y="54" fill="#172033" fontSize="17" fontWeight="800">Inclined Plane Visualizer</text>
+                <text x="42" y="82" fill="#172033" fontSize="15">m = 5 kg, μₖ = 0.2, d = 3 m</text>
               </svg>
             </div>
           </div>
