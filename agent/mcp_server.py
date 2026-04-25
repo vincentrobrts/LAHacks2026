@@ -115,7 +115,7 @@ def clamp(v, lo, hi):
 
 def parse_with_groq(prompt: str) -> dict:
     payload = json.dumps({
-        "model": "llama-3.3-70b-versatile",
+        "model": "llama-3.1-8b-instant",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
