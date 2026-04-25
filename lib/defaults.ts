@@ -1,6 +1,6 @@
 import type { SimulationConfig, SimulationType } from "@/types/simulation";
 
-export const DEFAULT_PROMPT = "A ball is launched at 38 degrees with a speed of 18 m/s. How far does it travel?";
+export const DEFAULT_PROMPT = "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.";
 
 export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
   projectile_motion: {
@@ -23,8 +23,8 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
   },
   inclined_plane: {
     type: "inclined_plane",
-    params: { angle: 30, friction: 0.3, mass: 1 },
-    world: { gravity: 9.8, friction: 0.3 },
+    params: { angle: 30, friction: 0.2, mass: 5, distance: 3 },
+    world: { gravity: 9.8, friction: 0.2 },
     explanationGoal: "Explain how the ramp angle and friction coefficient affect how fast the block slides.",
   },
   free_fall: {
@@ -35,11 +35,11 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
   },
 };
 
-export const DEFAULT_SIMULATION = DEFAULT_CONFIGS.projectile_motion;
+export const DEFAULT_SIMULATION = DEFAULT_CONFIGS.inclined_plane;
 
 export const DEMO_SHOT: SimulationConfig = {
-  type: "projectile_motion",
-  params: { angle: 45, speed: 25, mass: 1, initial_height: 0 },
-  world: { gravity: 9.8, friction: 0.1 },
-  explanationGoal: "Explain why 45 degrees gives maximum range on flat ground.",
+  type: "inclined_plane",
+  params: { angle: 30, friction: 0.2, mass: 5, distance: 3 },
+  world: { gravity: 9.8, friction: 0.2 },
+  explanationGoal: "Explain acceleration, friction, time, and final velocity for a block sliding down an inclined plane.",
 };

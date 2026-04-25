@@ -28,7 +28,7 @@ function saveHistory(prompt: string, config: SimulationConfig) {
     id: crypto.randomUUID(),
     prompt,
     config,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
   localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...existing].slice(0, 8)));
 }
@@ -42,6 +42,7 @@ export default function SimulationClient() {
   const [outcome, setOutcome] = useState<LaunchOutcome | null>(null);
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
   const [parsing, setParsing] = useState(false);
+  const [parseMessage, setParseMessage] = useState("");
 
   useEffect(() => {
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
@@ -77,6 +78,7 @@ export default function SimulationClient() {
 
   const reparse = async () => {
     setParsing(true);
+    setParseMessage("");
     try {
       const parsed = await parseWithAgentverse(prompt);
       setConfig(parsed);
@@ -84,15 +86,17 @@ export default function SimulationClient() {
       saveHistory(prompt, parsed);
       setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
       updateShareUrl(parsed);
+      setParseMessage("Parsed successfully.");
     } finally {
       setParsing(false);
     }
   };
 
   const runDemo = () => {
-    const nextPrompt = "Demo: projectile at 45° for maximum range";
+    const nextPrompt = DEFAULT_PROMPT;
     setConfig(DEMO_SHOT);
     setOutcome(null);
+    setParseMessage("");
     saveHistory(nextPrompt, DEMO_SHOT);
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
     updateShareUrl(DEMO_SHOT, nextPrompt);
@@ -107,7 +111,7 @@ export default function SimulationClient() {
       <div className="mx-auto max-w-[1500px]">
         <header className="mb-5 flex flex-col justify-between gap-4 rounded-lg border border-white/70 bg-white/75 p-4 shadow-sm backdrop-blur md:flex-row md:items-center">
           <div>
-            <Link href="/" className="text-sm font-semibold text-[#216869]">Physics Visualizer</Link>
+            <Link href="/" className="text-sm font-semibold text-[#216869]">Intuify</Link>
             <h1 className="mt-1 text-2xl font-bold text-slate-950">{scenarioLabel}</h1>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -142,6 +146,9 @@ export default function SimulationClient() {
                 <Clipboard size={17} />
                 {parsing ? "Parsing…" : "Build Simulation"}
               </button>
+              {parseMessage ? (
+                <p className="mt-2 text-xs font-semibold text-[#216869]">{parseMessage}</p>
+              ) : null}
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -180,8 +187,8 @@ export default function SimulationClient() {
                       className="mt-2 w-full"
                       type="range"
                       min={key === "v1" || key === "v2" ? -20 : 0}
-                      max={key === "speed" ? 40 : key === "angle" || key === "initial_angle" ? 85 : key === "height" ? 400 : key === "length" ? 250 : key === "mass" || key === "mass1" || key === "mass2" ? 10 : 20}
-                      step="0.1"
+                      max={key === "speed" ? 40 : key === "angle" || key === "initial_angle" ? 85 : key === "height" ? 400 : key === "length" ? 250 : key === "mass" || key === "mass1" || key === "mass2" ? 10 : key === "distance" ? 5 : 20}
+                      step={key === "friction" || key === "air_resistance" || key === "restitution" ? 0.01 : 0.1}
                       value={value}
                       onChange={(e) => updateParam(key, Number(e.target.value))}
                     />

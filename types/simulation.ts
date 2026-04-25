@@ -9,8 +9,8 @@ export type SimulationConfig = {
   type: SimulationType;
   params: Record<string, number>;
   world: {
-    gravity: number;  // m/s², Earth = 9.8
-    friction: number; // 0–1
+    gravity: number;
+    friction: number;
   };
   explanationGoal: string;
 };
