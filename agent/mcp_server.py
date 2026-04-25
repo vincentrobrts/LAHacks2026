@@ -351,15 +351,15 @@ function draw(t) {{
   ctx.lineTo(rampBaseX, rampBaseY);
   ctx.lineTo(rampTopX, rampBaseY);
   ctx.closePath();
-  ctx.fillStyle = "#dfe8e4";
+  ctx.fillStyle = COLORS.rampFill;
   ctx.fill();
-  ctx.strokeStyle = "#172033";
+  ctx.strokeStyle = COLORS.text;
   ctx.lineWidth = 3;
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(rampTopX, rampTopY);
   ctx.lineTo(rampBaseX, rampBaseY);
-  ctx.strokeStyle = "#172033";
+  ctx.strokeStyle = COLORS.text;
   ctx.lineWidth = 6;
   ctx.stroke();
 
@@ -367,10 +367,10 @@ function draw(t) {{
   const arcR = 55;
   ctx.beginPath();
   ctx.arc(rampBaseX, rampBaseY, arcR, -Math.PI, -Math.PI + theta, false);
-  ctx.strokeStyle = "#f2c14e";
+  ctx.strokeStyle = COLORS.gold;
   ctx.lineWidth = 3;
   ctx.stroke();
-  ctx.fillStyle = "#172033";
+  ctx.fillStyle = COLORS.text;
   ctx.font = "bold 13px system-ui";
   ctx.fillText("θ=" + cfg.angle + "°", rampBaseX - arcR - 50, rampBaseY + 20);
 
@@ -391,11 +391,11 @@ function draw(t) {{
   ctx.save();
   ctx.translate(bcx, bcy);
   ctx.rotate(theta);
-  ctx.fillStyle = "#216869";
+  ctx.fillStyle = COLORS.green;
   ctx.beginPath();
   roundRect(ctx, -BLOCK_W/2, -BLOCK_H/2, BLOCK_W, BLOCK_H, 5);
   ctx.fill();
-  ctx.fillStyle = "#2e8b88";
+  ctx.fillStyle = COLORS.greenDark;
   ctx.beginPath();
   roundRect(ctx, -BLOCK_W/2+6, -BLOCK_H/2+5, BLOCK_W-12, BLOCK_H-10, 3);
   ctx.fill();
@@ -405,11 +405,11 @@ function draw(t) {{
   ctx.beginPath();
   ctx.moveTo(bcx, bcy);
   ctx.lineTo(bcx, bcy + 48);
-  ctx.strokeStyle = "#c2410c";
+  ctx.strokeStyle = COLORS.red;
   ctx.lineWidth = 3;
   ctx.stroke();
-  arrowHead(ctx, bcx, bcy + 48, "#c2410c");
-  ctx.fillStyle = "#c2410c";
+  arrowHead(ctx, bcx, bcy + 48, COLORS.red);
+  ctx.fillStyle = COLORS.red;
   ctx.font = "bold 11px system-ui";
   ctx.fillText("mg", bcx + 5, bcy + 52);
 
@@ -417,20 +417,20 @@ function draw(t) {{
   ctx.beginPath();
   ctx.moveTo(bcx, bcy);
   ctx.lineTo(bcx + nx * 44, bcy + ny * 44);
-  ctx.strokeStyle = "#1d4ed8";
+  ctx.strokeStyle = COLORS.blue;
   ctx.lineWidth = 3;
   ctx.stroke();
-  arrowHead(ctx, bcx + nx * 44, bcy + ny * 44, "#1d4ed8");
-  ctx.fillStyle = "#1d4ed8";
+  arrowHead(ctx, bcx + nx * 44, bcy + ny * 44, COLORS.blue);
+  ctx.fillStyle = COLORS.blue;
   ctx.font = "bold 11px system-ui";
   ctx.fillText("N", bcx + nx * 50, bcy + ny * 50);
 
   // label
-  ctx.fillStyle = "#475569";
+  ctx.fillStyle = COLORS.muted;
   ctx.font = "12px system-ui";
   ctx.fillText("m=" + cfg.mass + "kg  μ=" + cfg.friction + "  g=" + cfg.g + "m/s²", PAD, 28);
   if (!cfg.slides) {{
-    ctx.fillStyle = "#c2410c";
+    ctx.fillStyle = COLORS.red;
     ctx.font = "bold 12px system-ui";
     ctx.fillText("Block does not slide", PAD, H - 12);
   }}
@@ -465,7 +465,7 @@ function draw(t) {{
   ctx.beginPath();
   ctx.moveTo(LX - 10, GY);
   ctx.lineTo(RX + 10, GY);
-  ctx.strokeStyle = "#172033";
+  ctx.strokeStyle = COLORS.ground;
   ctx.lineWidth = 5;
   ctx.stroke();
 
@@ -476,7 +476,7 @@ function draw(t) {{
     const [px, py] = getPos(ti);
     i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
   }}
-  ctx.strokeStyle = "rgba(33,104,105,0.25)";
+  ctx.strokeStyle = DARK ? "rgba(61,184,168,0.2)" : "rgba(33,104,105,0.25)";
   ctx.lineWidth = 3;
   ctx.setLineDash([8, 5]);
   ctx.stroke();
@@ -488,9 +488,9 @@ function draw(t) {{
   const [bx, by] = getPos(ballT);
   ctx.beginPath();
   ctx.arc(bx, by, 12, 0, Math.PI * 2);
-  ctx.fillStyle = "#216869";
+  ctx.fillStyle = COLORS.green;
   ctx.fill();
-  ctx.strokeStyle = "#172033";
+  ctx.strokeStyle = COLORS.text;
   ctx.lineWidth = 2;
   ctx.stroke();
 
@@ -498,11 +498,11 @@ function draw(t) {{
   ctx.beginPath();
   ctx.moveTo(LX, GY);
   ctx.lineTo(LX + Math.cos(theta) * 30, GY - Math.sin(theta) * 30);
-  ctx.strokeStyle = "#f2c14e";
+  ctx.strokeStyle = COLORS.gold;
   ctx.lineWidth = 4;
   ctx.stroke();
 
-  ctx.fillStyle = "#475569";
+  ctx.fillStyle = COLORS.muted;
   ctx.font = "12px system-ui";
   ctx.fillText("θ=" + cfg.angle + "°  v=" + cfg.speed + "m/s  g=" + cfg.g + "m/s²", LX, 28);
 }}
@@ -524,7 +524,7 @@ function draw(t) {{
   ctx.clearRect(0, 0, W, H);
 
   // ceiling bar
-  ctx.fillStyle = "#172033";
+  ctx.fillStyle = COLORS.text;
   ctx.fillRect(pivotX - 40, pivotY - 10, 80, 12);
 
   const angle = initRad * Math.cos(2 * Math.PI * t / cfg.period);
@@ -535,7 +535,7 @@ function draw(t) {{
   ctx.beginPath();
   ctx.moveTo(pivotX, pivotY);
   ctx.lineTo(pivotX, pivotY + armLen + 20);
-  ctx.strokeStyle = "#cbd5e1";
+  ctx.strokeStyle = COLORS.border;
   ctx.lineWidth = 1;
   ctx.setLineDash([5, 4]);
   ctx.stroke();
@@ -545,34 +545,34 @@ function draw(t) {{
   ctx.beginPath();
   ctx.moveTo(pivotX, pivotY);
   ctx.lineTo(bobX, bobY);
-  ctx.strokeStyle = "#172033";
+  ctx.strokeStyle = COLORS.text;
   ctx.lineWidth = 3;
   ctx.stroke();
 
   // pivot dot
   ctx.beginPath();
   ctx.arc(pivotX, pivotY, 7, 0, Math.PI * 2);
-  ctx.fillStyle = "#172033";
+  ctx.fillStyle = COLORS.text;
   ctx.fill();
 
   // bob
   ctx.beginPath();
   ctx.arc(bobX, bobY, 22, 0, Math.PI * 2);
-  ctx.fillStyle = "#216869";
+  ctx.fillStyle = COLORS.green;
   ctx.fill();
-  ctx.strokeStyle = "#172033";
+  ctx.strokeStyle = COLORS.text;
   ctx.lineWidth = 3;
   ctx.stroke();
 
   // angle arc label
   const arcR = 55;
   ctx.beginPath();
-  ctx.arc(pivotX, pivotY, arcR, Math.PI / 2, Math.PI / 2 + angle, angle > 0 ? false : true);
-  ctx.strokeStyle = "#f2c14e";
+  ctx.arc(pivotX, pivotY, arcR, Math.PI / 2, Math.PI / 2 - angle, angle > 0);
+  ctx.strokeStyle = COLORS.gold;
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  ctx.fillStyle = "#475569";
+  ctx.fillStyle = COLORS.muted;
   ctx.font = "12px system-ui";
   ctx.fillText("L=" + cfg.L_m.toFixed(1) + "m  θ₀=" + cfg.initAngle + "°  T=" + cfg.period.toFixed(2) + "s", 20, 28);
 }}
@@ -595,11 +595,11 @@ function draw(t) {{
   ctx.clearRect(0, 0, W, H);
 
   // ground
-  ctx.fillStyle = "#172033";
+  ctx.fillStyle = COLORS.ground;
   ctx.fillRect(cx - 60, groundY, 120, 6);
 
   // height label
-  ctx.fillStyle = "#94a3b8";
+  ctx.strokeStyle = COLORS.border;
   ctx.lineWidth = 1;
   ctx.setLineDash([5, 4]);
   ctx.beginPath();
@@ -607,7 +607,7 @@ function draw(t) {{
   ctx.lineTo(cx - 30, groundY);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = "#475569";
+  ctx.fillStyle = COLORS.muted;
   ctx.font = "12px system-ui";
   ctx.fillText(cfg.h_m.toFixed(0) + " m", cx - 60, (topY + groundY) / 2);
 
@@ -623,21 +623,21 @@ function draw(t) {{
   ctx.beginPath();
   ctx.moveTo(cx, by + 24);
   ctx.lineTo(cx, by + 24 + arrowLen);
-  ctx.strokeStyle = "#c2410c";
+  ctx.strokeStyle = COLORS.red;
   ctx.lineWidth = 3;
   ctx.stroke();
-  if (arrowLen > 8) arrowHead(ctx, cx, by + 24 + arrowLen, "#c2410c");
+  if (arrowLen > 8) arrowHead(ctx, cx, by + 24 + arrowLen, COLORS.red);
 
   // ball
   ctx.beginPath();
   ctx.arc(cx, by, 22, 0, Math.PI * 2);
-  ctx.fillStyle = "#216869";
+  ctx.fillStyle = COLORS.green;
   ctx.fill();
-  ctx.strokeStyle = "#172033";
+  ctx.strokeStyle = COLORS.text;
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  ctx.fillStyle = "#475569";
+  ctx.fillStyle = COLORS.muted;
   ctx.font = "12px system-ui";
   ctx.fillText("h=" + cfg.h_m.toFixed(0) + "m  m=" + cfg.mass + "kg  g=" + cfg.g + "m/s²", 20, 28);
 }}
@@ -667,7 +667,7 @@ function draw(t) {{
   ctx.clearRect(0, 0, W, H);
 
   // ground
-  ctx.fillStyle = "#172033";
+  ctx.fillStyle = COLORS.ground;
   ctx.fillRect(20, GY, W - 40, 5);
 
   const loopT = t % T_TOTAL;
@@ -693,30 +693,30 @@ function draw(t) {{
   }}
 
   // block 1
-  ctx.fillStyle = flash ? "#f2c14e" : "#216869";
+  ctx.fillStyle = flash ? COLORS.gold : COLORS.green;
   roundRect(ctx, x1, cy - BH/2, B1W, BH, 7);
   ctx.fill();
-  ctx.fillStyle = "white";
+  ctx.fillStyle = DARK ? COLORS.bg : "white";
   ctx.font = "bold 13px system-ui";
   ctx.textAlign = "center";
   ctx.fillText(cfg.m1 + "kg", x1 + B1W/2, cy + 5);
-  ctx.fillStyle = "#216869";
+  ctx.fillStyle = COLORS.green;
   ctx.font = "12px system-ui";
   ctx.fillText(label1, x1 + B1W/2, cy - BH/2 - 8);
 
   // block 2
-  ctx.fillStyle = flash ? "#f2c14e" : "#7c3aed";
+  ctx.fillStyle = flash ? COLORS.gold : COLORS.purple;
   roundRect(ctx, x2, cy - BH/2, B2W, BH, 7);
   ctx.fill();
-  ctx.fillStyle = "white";
+  ctx.fillStyle = DARK ? COLORS.bg : "white";
   ctx.font = "bold 13px system-ui";
   ctx.fillText(cfg.m2 + "kg", x2 + B2W/2, cy + 5);
-  ctx.fillStyle = "#7c3aed";
+  ctx.fillStyle = COLORS.purple;
   ctx.font = "12px system-ui";
   ctx.fillText(label2, x2 + B2W/2, cy - BH/2 - 8);
 
   ctx.textAlign = "left";
-  ctx.fillStyle = "#475569";
+  ctx.fillStyle = COLORS.muted;
   ctx.font = "12px system-ui";
   ctx.fillText("m₁=" + cfg.m1 + "kg  m₂=" + cfg.m2 + "kg  e=" + (cfg.v2f - cfg.v1f != 0 ? Math.abs((cfg.v2f - cfg.v1f)/(cfg.v1 - cfg.v2)).toFixed(2) : "1.0"), 20, 28);
 }}
@@ -728,10 +728,11 @@ function draw(t) {{
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; }}
-canvas {{ border-radius: 12px; border: 2px solid #e2e8f0; background: #f8fafc; display: block; }}
+body {{ background: transparent; display: flex; align-items: center; justify-content: center; min-height: 100vh; }}
+canvas {{ border-radius: 14px; display: block; }}
 </style>
 </head>
 <body>
@@ -739,6 +740,28 @@ canvas {{ border-radius: 12px; border: 2px solid #e2e8f0; background: #f8fafc; d
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+const DARK = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const COLORS = DARK ? {{
+  bg: '#1a1f2e', surface: '#242938', border: '#2e3650',
+  text: '#e2e8f0', muted: '#8892a4', ground: '#c8d0e0',
+  green: '#3db8a8', greenDark: '#172033', gold: '#f2c14e',
+  red: '#f87171', blue: '#60a5fa', purple: '#a78bfa',
+  rampFill: '#1e2d3a'
+}} : {{
+  bg: '#f8fafc', surface: '#f1f5f9', border: '#e2e8f0',
+  text: '#172033', muted: '#475569', ground: '#172033',
+  green: '#216869', greenDark: '#2e8b88', gold: '#f2c14e',
+  red: '#c2410c', blue: '#1d4ed8', purple: '#7c3aed',
+  rampFill: '#dfe8e4'
+}};
+
+// draw canvas background
+function drawBg() {{
+  ctx.fillStyle = COLORS.bg;
+  ctx.beginPath();
+  roundRect(ctx, 0, 0, canvas.width, canvas.height, 14);
+  ctx.fill();
+}}
 
 function roundRect(ctx, x, y, w, h, r) {{
   ctx.beginPath();
@@ -768,6 +791,12 @@ function arrowHead(ctx, x, y, color) {{
 }}
 
 {anim_js}
+
+const _origDraw = draw;
+function draw(t) {{
+  drawBg();
+  _origDraw(t);
+}}
 
 const start = performance.now();
 function loop() {{
