@@ -113,6 +113,7 @@ def parse_with_groq(prompt: str) -> dict:
         headers={
             "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json",
+            "User-Agent": "physics-visualizer/1.0",
         },
     )
     with urllib.request.urlopen(req) as resp:
