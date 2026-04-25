@@ -12,10 +12,19 @@ const numberAfter = (text: string, words: string[]) => {
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 function detectType(lower: string): SimulationType {
-  if (/pendulum|swing|string|hang|bob/.test(lower)) return "pendulum";
+  if (/bohr|hydrogen|electron.*level|energy.*level|spectral|photon.*emit|emit.*photon/.test(lower)) return "bohr_model";
+  if (/standing.?wave|harmonic|node|antinode|resonan|string.*vibrat|vibrat.*string/.test(lower)) return "standing_waves";
+  if (/bernoulli|fluid.?flow|pipe.*flow|venturi|pressure.*drop|continuity/.test(lower)) return "bernoulli";
+  if (/ohm|circuit|voltage|current|resistanc|battery|power.*dissip/.test(lower)) return "ohm_law";
+  if (/electric.?field|coulomb|charge.*repel|charge.*attract|field.?line/.test(lower)) return "electric_field";
+  if (/torque|lever.*arm|angular.*accel|rotating.*rod|moment.*inertia/.test(lower)) return "torque";
+  if (/circular.?motion|centripetal|orbit.*radius|radiu.*orbit/.test(lower)) return "circular_motion";
+  if (/pendulum|swing|bob/.test(lower)) return "pendulum";
+  if (/spring|hooke|shm|simple.?harmonic/.test(lower)) return "spring_mass";
   if (/collid|crash|hit|bump|elastic|inelastic|momentum/.test(lower)) return "collision_1d";
+  if (/atwood|pulley.*mass|mass.*pulley|table.*hanging|hanging.*mass/.test(lower)) return "atwood_table";
   if (/ramp|slope|incline|slide|plane/.test(lower)) return "inclined_plane";
-  if (/free.?fall|drop|fall|height|vacuum/.test(lower)) return "free_fall";
+  if (/free.?fall|drop.*height|height.*drop|vacuum/.test(lower)) return "free_fall";
   return "projectile_motion";
 }
 

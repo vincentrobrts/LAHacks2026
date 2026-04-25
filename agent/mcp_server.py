@@ -48,12 +48,40 @@ Params: { "spring_constant": <1–100 N/m>, "mass": <0.5–5 kg>, "amplitude": <
 Use when: Atwood machine, pulley with two masses, one on a table one hanging, connected by string.
 Params: { "mass1": <0.5–10 kg, table mass>, "mass2": <0.5–10 kg, hanging mass>, "friction": <0–0.9>, "distance": <1–5 m> }
 
+### circular_motion
+Use when: centripetal force, object moving in a circle, orbit, uniform circular motion.
+Params: { "radius": <0.5–4 m>, "mass": <0.5–5 kg>, "speed": <0.5–20 m/s> }
+
+### torque
+Use when: torque, lever arm, rotational force, moment, angular acceleration, rotating rod.
+Params: { "force": <1–100 N>, "arm_length": <0.1–3 m>, "mass": <0.5–10 kg> }
+
+### electric_field
+Use when: Coulomb force, electric field lines, point charges, electrostatics, attraction/repulsion.
+Params: { "charge1": <-10 to 10 uC>, "charge2": <-10 to 10 uC>, "separation": <0.1–2 m> }
+
+### ohm_law
+Use when: Ohm's law, circuit, voltage, current, resistance, power dissipation, battery.
+Params: { "voltage": <1–24 V>, "resistance": <1–100 ohm>, "internal_resistance": <0–10 ohm> }
+
+### bernoulli
+Use when: Bernoulli's principle, fluid flow, pipe flow, pressure drop, Venturi.
+Params: { "v1": <0.5–10 m/s>, "area_ratio": <1–4, A1/A2>, "density": <500–1500 kg/m3> }
+
+### standing_waves
+Use when: standing wave, resonance, string vibration, harmonics, nodes and antinodes.
+Params: { "tension": <1–100 N>, "linear_density": <0.001–0.01 kg/m>, "length": <0.5–3 m>, "harmonic": <1–6> }
+
+### bohr_model
+Use when: Bohr model, hydrogen atom, electron energy levels, photon emission, spectral lines.
+Params: { "atomic_number": <1–10>, "n_initial": <1–7>, "n_final": <1–6> }
+
 ## World parameters (always include)
 { "gravity": <1–20, Earth=9.8, Moon=1.6, Mars=3.7>, "friction": <0–1> }
 
 ## Output format (STRICT)
 {
-  "type": "<one of the five types above>",
+  "type": "<one of the fourteen types above>",
   "params": { <parameters for the chosen type> },
   "world": { "gravity": <number>, "friction": <number> },
   "explanationGoal": "<one sentence: what should be explained about this scenario>"
@@ -71,6 +99,13 @@ DEFAULTS = {
     "free_fall": {"height": 200, "mass": 1, "air_resistance": 0},
     "spring_mass": {"spring_constant": 20, "mass": 1, "amplitude": 0.5},
     "atwood_table": {"mass1": 4, "mass2": 2, "friction": 0, "distance": 3},
+    "circular_motion": {"radius": 2, "mass": 1, "speed": 4},
+    "torque": {"force": 20, "arm_length": 1.5, "mass": 2},
+    "electric_field": {"charge1": 5, "charge2": -3, "separation": 1.0},
+    "ohm_law": {"voltage": 12, "resistance": 40, "internal_resistance": 2},
+    "bernoulli": {"v1": 2, "area_ratio": 3, "density": 1000},
+    "standing_waves": {"tension": 40, "linear_density": 0.005, "length": 2, "harmonic": 3},
+    "bohr_model": {"atomic_number": 1, "n_initial": 3, "n_final": 1},
 }
 
 
@@ -217,6 +252,106 @@ def compute_results(config: dict) -> dict:
             "tension_n": round(T, 2),
             "time_s": round(t, 2),
             "final_speed_m_s": round(math.sqrt(2 * a * d), 2),
+        }
+
+    if sim_type == "circular_motion":
+        r = max(p.get("radius", 2), 0.01)
+        m = p.get("mass", 1)
+        v = p.get("speed", 4)
+        omega = v / r
+        period = 2 * math.pi / omega
+        ac = v * v / r
+        fc = m * ac
+        return {
+            "angular_speed_rad_s": round(omega, 3),
+            "period_s": round(period, 3),
+            "centripetal_acc_m_s2": round(ac, 2),
+            "centripetal_force_n": round(fc, 2),
+        }
+
+    if sim_type == "torque":
+        F = p.get("force", 20)
+        L = p.get("arm_length", 1.5)
+        m = p.get("mass", 2)
+        tau = F * L
+        I = (1 / 3) * m * L * L
+        alpha = tau / I
+        return {
+            "torque_nm": round(tau, 2),
+            "moment_of_inertia_kgm2": round(I, 4),
+            "angular_acc_rad_s2": round(alpha, 2),
+        }
+
+    if sim_type == "electric_field":
+        K = 8.99e9
+        q1 = p.get("charge1", 5) * 1e-6
+        q2 = p.get("charge2", -3) * 1e-6
+        d = max(p.get("separation", 1.0), 0.001)
+        F = K * abs(q1) * abs(q2) / (d * d)
+        attractive = (q1 * q2) < 0
+        return {
+            "coulomb_force_n": round(F, 4),
+            "interaction": "attractive" if attractive else "repulsive",
+        }
+
+    if sim_type == "ohm_law":
+        V = p.get("voltage", 12)
+        R = max(p.get("resistance", 40), 0.001)
+        r = p.get("internal_resistance", 2)
+        I = V / (R + r)
+        Vt = V - I * r
+        P_ext = I * I * R
+        P_int = I * I * r
+        return {
+            "current_a": round(I, 4),
+            "terminal_voltage_v": round(Vt, 3),
+            "external_power_w": round(P_ext, 3),
+            "internal_power_loss_w": round(P_int, 3),
+        }
+
+    if sim_type == "bernoulli":
+        v1 = p.get("v1", 2)
+        ar = max(p.get("area_ratio", 3), 1.0)
+        rho = p.get("density", 1000)
+        v2 = v1 * ar
+        dP = 0.5 * rho * (v2 * v2 - v1 * v1)
+        return {
+            "v1_m_s": round(v1, 2),
+            "v2_m_s": round(v2, 2),
+            "pressure_drop_pa": round(dP, 1),
+        }
+
+    if sim_type == "standing_waves":
+        T = max(p.get("tension", 40), 0.001)
+        mu = max(p.get("linear_density", 0.005), 0.0001)
+        L = max(p.get("length", 2), 0.01)
+        n = max(int(p.get("harmonic", 3)), 1)
+        wave_speed = math.sqrt(T / mu)
+        freq = n * wave_speed / (2 * L)
+        wavelength = 2 * L / n
+        return {
+            "wave_speed_m_s": round(wave_speed, 2),
+            "frequency_hz": round(freq, 2),
+            "wavelength_m": round(wavelength, 3),
+            "harmonic": n,
+        }
+
+    if sim_type == "bohr_model":
+        E_RY = 13.6
+        Z = max(int(p.get("atomic_number", 1)), 1)
+        ni = max(int(p.get("n_initial", 3)), 1)
+        nf = max(int(p.get("n_final", 1)), 1)
+        Ei = -E_RY * Z * Z / (ni * ni)
+        Ef = -E_RY * Z * Z / (nf * nf)
+        dE = Ef - Ei
+        emission = dE < 0
+        lambda_nm = 1240 / abs(dE) if abs(dE) > 0.001 else float("inf")
+        return {
+            "E_initial_ev": round(Ei, 3),
+            "E_final_ev": round(Ef, 3),
+            "delta_E_ev": round(abs(dE), 3),
+            "transition": "emission" if emission else "absorption",
+            "photon_wavelength_nm": round(lambda_nm, 1) if lambda_nm < 1e6 else None,
         }
 
     return {}
@@ -761,6 +896,434 @@ function draw(t) {{
   ctx.fillStyle = COLORS.muted;
   ctx.font = "12px system-ui";
   ctx.fillText("m₁=" + cfg.m1 + "kg  m₂=" + cfg.m2 + "kg  e=" + (cfg.v2f - cfg.v1f != 0 ? Math.abs((cfg.v2f - cfg.v1f)/(cfg.v1 - cfg.v2)).toFixed(2) : "1.0"), 20, 28);
+}}
+"""
+    elif sim_type == "spring_mass":
+        k = p.get("spring_constant", 20)
+        mass = p.get("mass", 1)
+        amp = p.get("amplitude", 0.5)
+        omega_sm = results.get("angular_freq_rad_s", math.sqrt(k / max(mass, 0.01)))
+        period_sm = results.get("period_s", 2 * math.pi / max(omega_sm, 0.01))
+        js_params = f"k:{k},mass:{mass},amp:{amp},omega:{omega_sm},period:{max(period_sm,0.5)}"
+        anim_js = f"""
+const cfg = {{{js_params}}};
+const W = canvas.width, H = canvas.height;
+const wallX = 60, eqX = W / 2 - 30;
+const springY = H / 2;
+const BW = 50, BH = 40;
+
+function draw(t) {{
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = COLORS.text;
+  ctx.fillRect(wallX - 12, springY - 50, 12, 100);
+
+  const disp = cfg.amp * Math.cos(cfg.omega * t);
+  const massX = eqX + disp * 80;
+
+  // spring coils
+  const coils = 12;
+  ctx.beginPath();
+  ctx.moveTo(wallX, springY);
+  for (let i = 0; i <= coils * 4; i++) {{
+    const fx = wallX + (massX - BW/2 - wallX) * i / (coils * 4);
+    const fy = springY + (i % 2 === 0 ? 0 : (i % 4 < 2 ? 12 : -12));
+    i === 0 ? ctx.moveTo(fx, fy) : ctx.lineTo(fx, fy);
+  }}
+  ctx.strokeStyle = COLORS.muted;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // equilibrium marker
+  ctx.strokeStyle = COLORS.border;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(eqX, springY - 50); ctx.lineTo(eqX, springY + 50); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // mass block
+  ctx.fillStyle = COLORS.green;
+  roundRect(ctx, massX - BW/2, springY - BH/2, BW, BH, 6); ctx.fill();
+  ctx.fillStyle = DARK ? COLORS.bg : 'white';
+  ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(cfg.mass+'kg', massX, springY + 5);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = COLORS.muted; ctx.font = '12px system-ui';
+  ctx.fillText('k='+cfg.k+'N/m  A='+cfg.amp.toFixed(2)+'m  T='+cfg.period.toFixed(2)+'s', 20, 28);
+}}
+"""
+    elif sim_type == "circular_motion":
+        radius = p.get("radius", 2)
+        mass = p.get("mass", 1)
+        speed = p.get("speed", 4)
+        omega_cm = results.get("angular_speed_rad_s", speed / max(radius, 0.01))
+        fc = results.get("centripetal_force_n", mass * speed * speed / max(radius, 0.01))
+        js_params = f"radius:{radius},mass:{mass},speed:{speed},omega:{min(omega_cm,5)},fc:{fc}"
+        anim_js = f"""
+const cfg = {{{js_params}}};
+const W = canvas.width, H = canvas.height;
+const cx = W/2, cy = H/2;
+const R = Math.min(cfg.radius * 55, 200);
+
+function draw(t) {{
+  ctx.clearRect(0, 0, W, H);
+  // orbit ring
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2);
+  ctx.strokeStyle = DARK ? 'rgba(255,255,255,0.12)' : 'rgba(23,32,51,0.18)';
+  ctx.lineWidth = 2; ctx.setLineDash([6,5]); ctx.stroke(); ctx.setLineDash([]);
+  // pivot
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2); ctx.fillStyle = COLORS.text; ctx.fill();
+
+  const angle = cfg.omega * t;
+  const bx = cx + R * Math.cos(angle), by = cy + R * Math.sin(angle);
+  // radius line
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bx, by);
+  ctx.strokeStyle = COLORS.border; ctx.lineWidth = 1.5; ctx.stroke();
+  // centripetal arrow
+  const flen = Math.min(cfg.fc/4, 80);
+  const dx = (cx - bx)/R, dy = (cy - by)/R;
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + dx*flen, by + dy*flen);
+  ctx.strokeStyle = COLORS.red; ctx.lineWidth = 3; ctx.stroke();
+  arrowHead(ctx, bx + dx*flen, by + dy*flen, COLORS.red);
+  // velocity arrow (tangent)
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - Math.sin(angle)*44, by + Math.cos(angle)*44);
+  ctx.strokeStyle = COLORS.blue; ctx.lineWidth = 3; ctx.stroke();
+  arrowHead(ctx, bx - Math.sin(angle)*44, by + Math.cos(angle)*44, COLORS.blue);
+  // ball
+  ctx.beginPath(); ctx.arc(bx, by, 14, 0, Math.PI*2);
+  ctx.fillStyle = COLORS.green; ctx.fill(); ctx.strokeStyle = COLORS.text; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = COLORS.muted; ctx.font = '12px system-ui';
+  ctx.fillText('r='+cfg.radius+'m  v='+cfg.speed+'m/s  Fc='+cfg.fc.toFixed(1)+'N', 20, 28);
+}}
+"""
+    elif sim_type == "torque":
+        force = p.get("force", 20)
+        arm = p.get("arm_length", 1.5)
+        mass = p.get("mass", 2)
+        alpha_val = results.get("angular_acc_rad_s2", 0)
+        tau_val = results.get("torque_nm", force * arm)
+        js_params = f"force:{force},arm:{arm},mass:{mass},alpha:{min(abs(alpha_val),3)},tau:{tau_val}"
+        anim_js = f"""
+const cfg = {{{js_params}}};
+const W = canvas.width, H = canvas.height;
+const px = W*0.3, py = H/2;
+const armPx = Math.min(cfg.arm*120, W*0.55);
+let theta = 0;
+
+function draw(t) {{
+  theta = Math.min(0.5 * cfg.alpha * t * t, Math.PI * 1.2) % (Math.PI * 1.4);
+  ctx.clearRect(0, 0, W, H);
+  const tipX = px + armPx * Math.cos(theta), tipY = py + armPx * Math.sin(theta);
+  // swept arc
+  ctx.beginPath(); ctx.arc(px, py, 35, 0, theta);
+  ctx.strokeStyle = COLORS.gold; ctx.lineWidth = 3; ctx.stroke();
+  // rod
+  ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tipX, tipY);
+  ctx.strokeStyle = COLORS.green; ctx.lineWidth = 10; ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+  // force arrow downward at tip
+  const flen = Math.min(cfg.force*2, 80);
+  ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(tipX, tipY+flen);
+  ctx.strokeStyle = COLORS.red; ctx.lineWidth = 3; ctx.stroke();
+  arrowHead(ctx, tipX, tipY+flen, COLORS.red);
+  // pivot
+  ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI*2); ctx.fillStyle = COLORS.text; ctx.fill();
+  ctx.fillStyle = DARK ? COLORS.bg : 'white'; ctx.font = 'bold 9px system-ui';
+  ctx.textAlign = 'center'; ctx.fillText('P', px, py+3); ctx.textAlign = 'left';
+
+  ctx.fillStyle = COLORS.muted; ctx.font = '12px system-ui';
+  ctx.fillText('F='+cfg.force+'N  L='+cfg.arm+'m  τ='+cfg.tau.toFixed(1)+'N·m', 20, 28);
+}}
+"""
+    elif sim_type == "electric_field":
+        q1 = p.get("charge1", 5)
+        q2 = p.get("charge2", -3)
+        sep = p.get("separation", 1.0)
+        fc_e = results.get("coulomb_force_n", 0)
+        attractive = (q1 * q2) < 0
+        js_params = f"q1:{q1},q2:{q2},sep:{sep},fc:{fc_e},attractive:{'true' if attractive else 'false'}"
+        anim_js = f"""
+const cfg = {{{js_params}}};
+const W = canvas.width, H = canvas.height;
+const cx = W/2, cy = H/2;
+const q1x = cx - 100, q2x = cx + 100;
+const R = 20;
+
+function draw(t) {{
+  ctx.clearRect(0, 0, W, H);
+  const pulse = 0.85 + 0.15 * Math.sin(t * 3);
+
+  // field lines
+  const nLines = 6;
+  for (let i = 0; i < nLines; i++) {{
+    const a = (i / nLines) * Math.PI * 2;
+    const sx = q1x + Math.cos(a)*(R+2), sy = cy + Math.sin(a)*(R+2);
+    let ex, ey;
+    if (cfg.attractive) {{
+      ex = q2x - Math.cos(a)*(R+2); ey = cy - Math.sin(a)*(R+2);
+    }} else {{
+      ex = sx + Math.cos(a)*120; ey = sy + Math.sin(a)*120;
+    }}
+    ctx.beginPath(); ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(sx+Math.cos(a)*55, sy+Math.sin(a)*55, ex, ey);
+    ctx.strokeStyle = 'rgba(148,163,184,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+  }}
+
+  // force arrows
+  const flen = Math.min(cfg.fc * pulse * 60, 70);
+  if (cfg.attractive) {{
+    ctx.beginPath(); ctx.moveTo(q1x+R+4, cy); ctx.lineTo(q1x+R+4+flen, cy);
+    ctx.strokeStyle = COLORS.red; ctx.lineWidth = 3; ctx.stroke();
+    arrowHead(ctx, q1x+R+4+flen, cy, COLORS.red);
+    ctx.beginPath(); ctx.moveTo(q2x-R-4, cy); ctx.lineTo(q2x-R-4-flen, cy);
+    ctx.strokeStyle = COLORS.blue; ctx.lineWidth = 3; ctx.stroke();
+    arrowHead(ctx, q2x-R-4-flen, cy, COLORS.blue);
+  }} else {{
+    ctx.beginPath(); ctx.moveTo(q1x-R-4, cy); ctx.lineTo(q1x-R-4-flen, cy);
+    ctx.strokeStyle = COLORS.red; ctx.lineWidth = 3; ctx.stroke();
+    arrowHead(ctx, q1x-R-4-flen, cy, COLORS.red);
+    ctx.beginPath(); ctx.moveTo(q2x+R+4, cy); ctx.lineTo(q2x+R+4+flen, cy);
+    ctx.strokeStyle = COLORS.blue; ctx.lineWidth = 3; ctx.stroke();
+    arrowHead(ctx, q2x+R+4+flen, cy, COLORS.blue);
+  }}
+
+  // charge circles
+  const c1 = cfg.q1 >= 0 ? COLORS.red : COLORS.blue;
+  const c2 = cfg.q2 >= 0 ? COLORS.red : COLORS.blue;
+  ctx.beginPath(); ctx.arc(q1x, cy, R, 0, Math.PI*2); ctx.fillStyle = c1; ctx.fill();
+  ctx.beginPath(); ctx.arc(q2x, cy, R, 0, Math.PI*2); ctx.fillStyle = c2; ctx.fill();
+  ctx.fillStyle = 'white'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(cfg.q1>=0?'+':'−', q1x, cy+5); ctx.fillText(cfg.q2>=0?'+':'−', q2x, cy+5);
+  ctx.textAlign = 'left';
+
+  ctx.fillStyle = COLORS.muted; ctx.font = '12px system-ui';
+  ctx.fillText('q₁='+cfg.q1+'μC  q₂='+cfg.q2+'μC  F='+cfg.fc.toFixed(3)+'N', 20, 28);
+}}
+"""
+    elif sim_type == "ohm_law":
+        V = p.get("voltage", 12)
+        R = p.get("resistance", 40)
+        r_int = p.get("internal_resistance", 2)
+        I_val = results.get("current_a", V / max(R + r_int, 0.001))
+        Vt = results.get("terminal_voltage_v", V - I_val * r_int)
+        P_ext = results.get("external_power_w", I_val * I_val * R)
+        js_params = f"V:{V},R:{R},r:{r_int},I:{I_val:.4f},Vt:{Vt:.3f},P:{P_ext:.3f}"
+        anim_js = f"""
+const cfg = {{{js_params}}};
+const W = canvas.width, H = canvas.height;
+const rx = 100, ry = 80, rw = W-200, rh = H-160;
+const dotSpeed = Math.min(cfg.I * 500, 600);
+const perim = 2*(rw+rh);
+
+function dotXY(pos) {{
+  const p = pos % perim;
+  if (p < rw) return [rx+p, ry];
+  if (p < rw+rh) return [rx+rw, ry+(p-rw)];
+  if (p < 2*rw+rh) return [rx+rw-(p-rw-rh), ry+rh];
+  return [rx, ry+rh-(p-2*rw-rh)];
+}}
+
+function draw(t) {{
+  ctx.clearRect(0, 0, W, H);
+  // circuit rect
+  ctx.beginPath(); ctx.roundRect(rx, ry, rw, rh, 8);
+  ctx.strokeStyle = COLORS.text; ctx.lineWidth = 4; ctx.stroke();
+
+  // battery (left side)
+  const bmy = ry+rh/2;
+  ctx.fillStyle = COLORS.bg; ctx.fillRect(rx-4, bmy-30, 8, 60);
+  ctx.strokeStyle = COLORS.red; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(rx-14,bmy-16); ctx.lineTo(rx+14,bmy-16); ctx.stroke();
+  ctx.strokeStyle = COLORS.text; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(rx-9,bmy+8); ctx.lineTo(rx+9,bmy+8); ctx.stroke();
+  ctx.fillStyle = COLORS.muted; ctx.font = '11px system-ui';
+  ctx.fillText(cfg.V+'V', rx-36, bmy+5);
+
+  // resistor zigzag (right side)
+  const rsx = rx+rw, rsy = ry+rh/2;
+  ctx.fillStyle = COLORS.bg; ctx.fillRect(rsx-4, rsy-38, 8, 76);
+  const zigPts = [[rsx,rsy-30],[rsx-13,rsy-18],[rsx+13,rsy-6],[rsx-13,rsy+6],[rsx+13,rsy+18],[rsx,rsy+30]];
+  ctx.beginPath(); ctx.moveTo(...zigPts[0]);
+  zigPts.slice(1).forEach(pt => ctx.lineTo(...pt));
+  ctx.strokeStyle = COLORS.green; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = COLORS.muted; ctx.font = '11px system-ui';
+  ctx.fillText(cfg.R+'Ω', rsx+14, rsy+5);
+
+  // current dots
+  const nDots = 5;
+  for (let i = 0; i < nDots; i++) {{
+    const pos = (dotSpeed * t + i * perim/nDots) % perim;
+    const [dx, dy] = dotXY(pos);
+    ctx.beginPath(); ctx.arc(dx, dy, 5, 0, Math.PI*2);
+    ctx.fillStyle = COLORS.gold; ctx.fill();
+  }}
+
+  ctx.fillStyle = COLORS.muted; ctx.font = '12px system-ui';
+  ctx.fillText('I='+cfg.I.toFixed(3)+'A  V_t='+cfg.Vt.toFixed(2)+'V  P='+cfg.P.toFixed(2)+'W', 20, 28);
+}}
+"""
+    elif sim_type == "bernoulli":
+        v1 = p.get("v1", 2)
+        ar = p.get("area_ratio", 3)
+        rho = p.get("density", 1000)
+        v2 = results.get("v2_m_s", v1 * ar)
+        dP = results.get("pressure_drop_pa", 0)
+        js_params = f"v1:{v1},v2:{v2:.2f},ar:{ar},rho:{rho},dP:{dP:.0f}"
+        anim_js = f"""
+const cfg = {{{js_params}}};
+const W = canvas.width, H = canvas.height;
+const cy = H/2;
+const HW=90, HN=30;
+const sx0=40, sx1=W*0.38, sx2=W*0.62, sx3=W-40;
+const particles = Array.from({{length:10}}, (_,i) => ({{x: sx0+i*(sx3-sx0)/10, lane: i%3-1}}));
+
+function pipeY(x) {{
+  if (x<sx1) return cy;
+  if (x<sx2) return cy;
+  return cy;
+}}
+
+function draw(t) {{
+  ctx.clearRect(0, 0, W, H);
+  // pipe outline
+  ctx.beginPath();
+  ctx.moveTo(sx0,cy-HW); ctx.lineTo(sx1,cy-HW); ctx.lineTo(sx1+30,cy-HN); ctx.lineTo(sx2-30,cy-HN); ctx.lineTo(sx2,cy-HW); ctx.lineTo(sx3,cy-HW);
+  ctx.moveTo(sx0,cy+HW); ctx.lineTo(sx1,cy+HW); ctx.lineTo(sx1+30,cy+HN); ctx.lineTo(sx2-30,cy+HN); ctx.lineTo(sx2,cy+HW); ctx.lineTo(sx3,cy+HW);
+  ctx.strokeStyle = COLORS.text; ctx.lineWidth = 4; ctx.stroke();
+  ctx.fillStyle = DARK ? 'rgba(96,165,250,0.1)' : 'rgba(191,219,254,0.5)';
+  ctx.beginPath();
+  ctx.moveTo(sx0,cy-HW); ctx.lineTo(sx1,cy-HW); ctx.lineTo(sx1+30,cy-HN); ctx.lineTo(sx2-30,cy-HN);
+  ctx.lineTo(sx2,cy-HW); ctx.lineTo(sx3,cy-HW); ctx.lineTo(sx3,cy+HW); ctx.lineTo(sx2,cy+HW);
+  ctx.lineTo(sx2-30,cy+HN); ctx.lineTo(sx1+30,cy+HN); ctx.lineTo(sx1,cy+HW); ctx.lineTo(sx0,cy+HW);
+  ctx.closePath(); ctx.fill();
+
+  // particles
+  particles.forEach(p => {{
+    const inN = p.x>sx1+30 && p.x<sx2-30;
+    const speed = inN ? cfg.v2*28 : cfg.v1*28;
+    p.x += speed/60;
+    if (p.x > sx3) p.x = sx0;
+    const py = cy + (inN ? 0 : p.lane*28);
+    ctx.beginPath(); ctx.arc(p.x, py, inN?5:7, 0, Math.PI*2);
+    ctx.fillStyle = COLORS.blue; ctx.globalAlpha = 0.75; ctx.fill(); ctx.globalAlpha = 1;
+  }});
+
+  ctx.fillStyle = COLORS.muted; ctx.font = '12px system-ui';
+  ctx.fillText('v₁='+cfg.v1.toFixed(1)+'m/s  v₂='+cfg.v2.toFixed(1)+'m/s  ΔP='+cfg.dP.toFixed(0)+'Pa', 20, 28);
+}}
+"""
+    elif sim_type == "standing_waves":
+        T_t = p.get("tension", 40)
+        mu_sw = p.get("linear_density", 0.005)
+        L_sw = p.get("length", 2)
+        n_sw = int(p.get("harmonic", 3))
+        wave_speed = results.get("wave_speed_m_s", math.sqrt(T_t / max(mu_sw, 0.0001)))
+        freq_sw = results.get("frequency_hz", n_sw * wave_speed / (2 * max(L_sw, 0.01)))
+        omega_sw = 2 * math.pi * freq_sw
+        js_params = f"n:{n_sw},freq:{freq_sw:.2f},omega:{min(omega_sw,25):.2f},waveSpeed:{wave_speed:.2f},L:{L_sw}"
+        anim_js = f"""
+const cfg = {{{js_params}}};
+const W = canvas.width, H = canvas.height;
+const x0=60, x1=W-60, sy=H/2, AMP=75;
+
+function draw(t) {{
+  ctx.clearRect(0, 0, W, H);
+  // equilibrium line
+  ctx.beginPath(); ctx.moveTo(x0, sy); ctx.lineTo(x1, sy);
+  ctx.strokeStyle = COLORS.border; ctx.lineWidth=1; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]);
+
+  // wave
+  ctx.beginPath();
+  for (let i=0; i<=300; i++) {{
+    const frac=i/300, x=x0+frac*(x1-x0);
+    const y=sy - AMP*Math.sin(cfg.n*Math.PI*frac)*Math.cos(cfg.omega*t);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }}
+  ctx.strokeStyle=COLORS.green; ctx.lineWidth=4; ctx.lineCap='round'; ctx.stroke(); ctx.lineCap='butt';
+
+  // ghost wave
+  ctx.beginPath();
+  for (let i=0; i<=300; i++) {{
+    const frac=i/300, x=x0+frac*(x1-x0);
+    const y=sy - AMP*Math.sin(cfg.n*Math.PI*frac)*Math.cos(cfg.omega*t+Math.PI);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }}
+  ctx.strokeStyle=COLORS.green; ctx.lineWidth=2; ctx.globalAlpha=0.25; ctx.stroke(); ctx.globalAlpha=1;
+
+  // fixed ends
+  ctx.fillStyle=COLORS.text; ctx.fillRect(x0-10,sy-30,10,60); ctx.fillRect(x1,sy-30,10,60);
+
+  // nodes
+  for (let i=0; i<=cfg.n; i++) {{
+    const nx=x0+(i/cfg.n)*(x1-x0);
+    ctx.beginPath(); ctx.arc(nx, sy, 6, 0, Math.PI*2); ctx.fillStyle=COLORS.red; ctx.fill();
+  }}
+
+  ctx.fillStyle=COLORS.muted; ctx.font='12px system-ui';
+  ctx.fillText('n='+cfg.n+'  f='+cfg.freq.toFixed(1)+'Hz  v='+cfg.waveSpeed.toFixed(1)+'m/s  L='+cfg.L+'m', 20, 28);
+}}
+"""
+    elif sim_type == "bohr_model":
+        Z_bh = int(p.get("atomic_number", 1))
+        ni_bh = int(p.get("n_initial", 3))
+        nf_bh = int(p.get("n_final", 1))
+        dE_bh = results.get("delta_E_ev", 0)
+        emission_bh = results.get("transition", "emission") == "emission"
+        lam = results.get("photon_wavelength_nm")
+        js_params = f"Z:{Z_bh},ni:{ni_bh},nf:{nf_bh},dE:{dE_bh},emission:{'true' if emission_bh else 'false'},lam:{lam if lam else 0}"
+        anim_js = f"""
+const cfg = {{{js_params}}};
+const W = canvas.width, H = canvas.height;
+const cx=W/2, cy=H/2;
+const SCALE=38;
+let currentN = cfg.ni, transitioned=false, transTime=null;
+
+function orbR(n) {{ return Math.min(n*n*SCALE, 200); }}
+
+function draw(t) {{
+  ctx.clearRect(0, 0, W, H);
+
+  // rings
+  for (let n=1; n<=Math.min(cfg.ni+1,6); n++) {{
+    ctx.beginPath(); ctx.arc(cx,cy,orbR(n),0,Math.PI*2);
+    ctx.strokeStyle = n===cfg.ni ? COLORS.gold : (n===cfg.nf ? '#22c55e' : COLORS.border);
+    ctx.lineWidth = (n===cfg.ni||n===cfg.nf)?2:1;
+    ctx.setLineDash(n===cfg.ni||n===cfg.nf?[]:[4,4]); ctx.stroke(); ctx.setLineDash([]);
+    const E=-13.6*cfg.Z*cfg.Z/(n*n);
+    ctx.fillStyle=COLORS.muted; ctx.font='10px system-ui';
+    ctx.fillText('n='+n+' ('+E.toFixed(1)+'eV)', cx+orbR(n)+4, cy+3);
+  }}
+
+  // nucleus
+  ctx.beginPath(); ctx.arc(cx,cy,16,0,Math.PI*2); ctx.fillStyle='#f97316'; ctx.fill();
+  ctx.fillStyle='white'; ctx.font='bold 11px system-ui'; ctx.textAlign='center';
+  ctx.fillText(cfg.Z+'p', cx, cy+4); ctx.textAlign='left';
+
+  // transition timing: orbit 2s then transition
+  if (!transitioned && t>2.5) {{ transitioned=true; transTime=t; }}
+  const showTransition = transitioned && t-transTime<0.8;
+  const orbN = (transitioned && t-transTime>0.4) ? cfg.nf : cfg.ni;
+  const omega_n = 3/(orbN*orbN);
+  const angle = omega_n * t;
+  const er = orbR(orbN);
+  const ex = cx + er*Math.cos(angle), ey = cy + er*Math.sin(angle);
+
+  // photon flash
+  if (showTransition) {{
+    ctx.beginPath(); ctx.arc(cx,cy,er,0,Math.PI*2);
+    const pc = cfg.lam<450?'#818cf8':cfg.lam<500?'#60a5fa':cfg.lam<565?'#4ade80':cfg.lam<620?'#facc15':'#f87171';
+    ctx.strokeStyle=pc; ctx.lineWidth=6; ctx.globalAlpha=0.5*(1-(t-transTime)/0.8); ctx.stroke(); ctx.globalAlpha=1;
+    if (cfg.lam>0) {{
+      ctx.fillStyle=pc; ctx.font='bold 13px system-ui'; ctx.textAlign='center';
+      ctx.fillText('γ '+cfg.lam.toFixed(0)+'nm', cx, cy-er-12); ctx.textAlign='left';
+    }}
+  }}
+
+  // electron
+  ctx.beginPath(); ctx.arc(ex,ey,9,0,Math.PI*2); ctx.fillStyle='#60a5fa'; ctx.fill();
+
+  ctx.fillStyle=COLORS.muted; ctx.font='12px system-ui';
+  ctx.fillText('Z='+cfg.Z+'  n_i='+cfg.ni+'→n_f='+cfg.nf+'  |ΔE|='+cfg.dE.toFixed(2)+'eV', 20, 28);
 }}
 """
     else:

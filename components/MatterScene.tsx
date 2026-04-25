@@ -3,6 +3,13 @@
 import { RotateCcw, Target, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LaunchOutcome, SimulationConfig } from "@/types/simulation";
+import CircularMotionScene from "@/components/scenes/CircularMotionScene";
+import TorqueScene from "@/components/scenes/TorqueScene";
+import ElectricFieldScene from "@/components/scenes/ElectricFieldScene";
+import OhmLawScene from "@/components/scenes/OhmLawScene";
+import BernoulliScene from "@/components/scenes/BernoulliScene";
+import StandingWavesScene from "@/components/scenes/StandingWavesScene";
+import BohrModelScene from "@/components/scenes/BohrModelScene";
 
 type Props = {
   config: SimulationConfig;
@@ -1104,8 +1111,8 @@ function CollisionScene({ config, onOutcome }: Props) {
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
           <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
             <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">m₁ = {fmt(metrics.m1, 1)} kg<br />v₁ = {fmt(metrics.v1, 1)} m/s<br />m₂ = {fmt(metrics.m2, 1)} kg<br />v₂ = {fmt(metrics.v2, 1)} m/s<br />e = {fmt(metrics.e, 2)}</p></div>
-            <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">p_i = p_f<br />e = (v₂'−v₁')/(v₁−v₂)<br />v₁' = (m₁−em₂)v₁+(1+e)m₂v₂ / (m₁+m₂)</p></div>
-            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">v₁' = {fmt(metrics.v1f, 2)} m/s<br />v₂' = {fmt(metrics.v2f, 2)} m/s<br />p = {fmt(metrics.momentum, 2)} kg·m/s<br />KE lost = {fmt(metrics.keLost, 2)} J</p></div>
+            <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">p_i = p_f<br />e = (v₂&apos;−v₁&apos;)/(v₁−v₂)<br />v₁&apos; = (m₁−em₂)v₁+(1+e)m₂v₂ / (m₁+m₂)</p></div>
+            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">v₁&apos; = {fmt(metrics.v1f, 2)} m/s<br />v₂&apos; = {fmt(metrics.v2f, 2)} m/s<br />p = {fmt(metrics.momentum, 2)} kg·m/s<br />KE lost = {fmt(metrics.keLost, 2)} J</p></div>
           </div>
         </section>
         <section className="rounded-md border border-slate-200 bg-white p-4">
@@ -1417,5 +1424,12 @@ export default function MatterScene(props: Props) {
   if (props.config.type === "collision_1d") return <CollisionScene {...props} />;
   if (props.config.type === "free_fall") return <FreeFallScene {...props} />;
   if (props.config.type === "spring_mass") return <SpringMassScene {...props} />;
+  if (props.config.type === "circular_motion") return <CircularMotionScene {...props} />;
+  if (props.config.type === "torque") return <TorqueScene {...props} />;
+  if (props.config.type === "electric_field") return <ElectricFieldScene {...props} />;
+  if (props.config.type === "ohm_law") return <OhmLawScene {...props} />;
+  if (props.config.type === "bernoulli") return <BernoulliScene {...props} />;
+  if (props.config.type === "standing_waves") return <StandingWavesScene {...props} />;
+  if (props.config.type === "bohr_model") return <BohrModelScene {...props} />;
   return <PlaceholderScene {...props} />;
 }

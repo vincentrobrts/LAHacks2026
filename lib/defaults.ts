@@ -45,6 +45,48 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
     world: { gravity: 9.8, friction: 0 },
     explanationGoal: "Explain how spring stiffness and mass determine the period and speed of simple harmonic motion.",
   },
+  circular_motion: {
+    type: "circular_motion",
+    params: { radius: 2, mass: 1, speed: 4 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how centripetal force keeps an object moving in a circle and how it depends on speed and radius.",
+  },
+  torque: {
+    type: "torque",
+    params: { force: 20, arm_length: 1.5, mass: 2 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how torque and moment of inertia determine the angular acceleration of a rotating rod.",
+  },
+  electric_field: {
+    type: "electric_field",
+    params: { charge1: 5, charge2: -3, separation: 1.0 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Show how opposite and like charges create field lines and exert Coulomb forces on each other.",
+  },
+  ohm_law: {
+    type: "ohm_law",
+    params: { voltage: 12, resistance: 40, internal_resistance: 2 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how voltage, resistance, and internal resistance determine current and power in a circuit.",
+  },
+  bernoulli: {
+    type: "bernoulli",
+    params: { v1: 2, area_ratio: 3, density: 1000 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Show how fluid speeds up and pressure drops in a narrower pipe section via Bernoulli's principle.",
+  },
+  standing_waves: {
+    type: "standing_waves",
+    params: { tension: 40, linear_density: 0.005, length: 2, harmonic: 3 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how wave speed, string length, and harmonic number determine the standing wave frequency.",
+  },
+  bohr_model: {
+    type: "bohr_model",
+    params: { atomic_number: 1, n_initial: 3, n_final: 1 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Show how electron transitions between energy levels determine the wavelength of emitted or absorbed photons.",
+  },
 };
 
 export const DEFAULT_SIMULATION = DEFAULT_CONFIGS.inclined_plane;

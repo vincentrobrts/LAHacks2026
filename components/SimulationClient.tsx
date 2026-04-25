@@ -42,6 +42,14 @@ const SCENARIO_LABELS: Record<string, string> = {
   inclined_plane: "Inclined Plane",
   free_fall: "Free Fall",
   atwood_table: "Atwood Table",
+  spring_mass: "Spring-Mass",
+  circular_motion: "Circular Motion",
+  torque: "Torque",
+  electric_field: "Electric Field",
+  ohm_law: "Ohm's Law",
+  bernoulli: "Bernoulli Flow",
+  standing_waves: "Standing Waves",
+  bohr_model: "Bohr Model",
 };
 
 function saveHistory(prompt: string, config: SimulationConfig) {
@@ -55,60 +63,6 @@ function saveHistory(prompt: string, config: SimulationConfig) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...existing].slice(0, 8)));
 }
 
-function extractInclinedPlaneValues(prompt: string) {
-  const lower = prompt.toLowerCase();
-  const mass = lower.match(/(\d+(?:\.\d+)?)\s*kg\b/)?.[1];
-  const angle = lower.match(/(\d+(?:\.\d+)?)\s*(?:degree|degrees|deg)\b/)?.[1];
-  const friction =
-    lower.match(/(?:μ|mu)\s*k?\s*=\s*(\d+(?:\.\d+)?)/)?.[1] ??
-    lower.match(/coefficient\s+of\s+kinetic\s+friction\D{0,80}(\d+(?:\.\d+)?)/)?.[1] ??
-    lower.match(/friction\s+coefficient\D{0,40}(\d+(?:\.\d+)?)/)?.[1];
-  const distance =
-    lower.match(/(?:for|over|travel|travels|traveling|across)\s*(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1] ??
-    lower.match(/(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1];
-  const gravity = lower.match(/\bgravity\s*(?:is|=|of)?\s*(\d+(?:\.\d+)?)|\bg\s*=\s*(\d+(?:\.\d+)?)/);
-
-  if (!mass || !angle || !friction || !distance) return null;
-
-  return {
-    mass: Number(mass),
-    angle: Number(angle),
-    friction: Number(friction),
-    distance: Number(distance),
-    gravity: gravity ? Number(gravity[1] ?? gravity[2]) : 9.8,
-  };
-}
-
-function extractAtwoodValues(prompt: string) {
-  const lower = prompt.toLowerCase();
-  const isAtwood = /table/.test(lower) && /pulley|hanging|connected/.test(lower);
-  if (!isAtwood) return null;
-
-  const kgValues = Array.from(lower.matchAll(/(\d+(?:\.\d+)?)\s*kg\b/g)).map((match) => Number(match[1]));
-  const distance =
-    lower.match(/(?:falls|fall|moves|travels|over)\s*(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1] ??
-    lower.match(/(\d+(?:\.\d+)?)\s*(?:meter|meters|m)\b/)?.[1];
-  const friction =
-    lower.includes("frictionless")
-      ? "0"
-      : lower.match(/(?:μ|mu)\s*=\s*(\d+(?:\.\d+)?)/)?.[1] ??
-        lower.match(/friction\D{0,40}(\d+(?:\.\d+)?)/)?.[1];
-  const gravity = lower.match(/\bgravity\s*(?:is|=|of)?\s*(\d+(?:\.\d+)?)\b|\bg\s*=\s*(\d+(?:\.\d+)?)/);
-
-  if (kgValues.length < 2 || !distance || friction === undefined) return null;
-
-  return {
-    mass1: kgValues[0],
-    mass2: kgValues[1],
-    friction: Number(friction),
-    distance: Number(distance),
-    gravity: gravity ? Number(gravity[1] ?? gravity[2]) : 9.8,
-  };
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function paramLabel(type: string, key: string) {
   if (type === "atwood_table") {
@@ -169,60 +123,18 @@ export default function SimulationClient() {
     setParsing(true);
     setParseMessage("");
     try {
-      const atwood = extractAtwoodValues(prompt);
-      if (atwood) {
-        const nextConfig: SimulationConfig = {
-          type: "atwood_table",
-          params: {
-            mass1: clamp(atwood.mass1, 0.5, 10),
-            mass2: clamp(atwood.mass2, 0.5, 10),
-            friction: clamp(atwood.friction, 0, 0.9),
-            distance: clamp(atwood.distance, 1, 5),
-          },
-          world: {
-            gravity: clamp(atwood.gravity, 1, 20),
-            friction: clamp(atwood.friction, 0, 0.9),
-          },
-          explanationGoal: "Show how tension and gravity determine the acceleration of a two-mass pulley system.",
-        };
-
-        setConfig(nextConfig);
-        setOutcome(null);
-        saveHistory(prompt, nextConfig);
-        setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
-        updateShareUrl(nextConfig);
-        return;
-      }
-
       const parsed = await parseWithAgentverse(prompt);
-      const extracted = extractInclinedPlaneValues(prompt);
 
-      if (parsed.type !== "inclined_plane" || !extracted) {
+      if (!parsed || !parsed.type || !parsed.params) {
         setParseMessage(PROMPT_HELP_MESSAGE);
         return;
       }
 
-      const nextConfig: SimulationConfig = {
-        ...parsed,
-        params: {
-          ...parsed.params,
-          mass: clamp(extracted.mass, 0.5, 10),
-          angle: clamp(extracted.angle, 5, 60),
-          friction: clamp(extracted.friction, 0, 0.9),
-          distance: clamp(extracted.distance, 1, 5),
-        },
-        world: {
-          ...parsed.world,
-          gravity: clamp(extracted.gravity, 1, 20),
-          friction: clamp(extracted.friction, 0, 0.9),
-        },
-      };
-
-      setConfig(nextConfig);
+      setConfig(parsed);
       setOutcome(null);
-      saveHistory(prompt, nextConfig);
+      saveHistory(prompt, parsed);
       setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
-      updateShareUrl(nextConfig);
+      updateShareUrl(parsed);
     } catch {
       setParseMessage(PROMPT_HELP_MESSAGE);
     } finally {
