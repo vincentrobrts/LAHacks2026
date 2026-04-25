@@ -1,153 +1,81 @@
-# AI Agents Specification — Physics Simulation System
+# Agent Definitions
 
-This document defines all AI agents used in the system, their responsibilities, inputs, outputs, and constraints.
+This document defines all agents in the system.
 
 ---
 
-## 1. ASI:One Router Agent (Fetch.ai Entry Layer)
+## 1. Planner Agent
 
-### Purpose
-Routes user natural language input to the correct internal agent system.
+### Role
+Converts user intent into structured simulation goals.
 
 ### Input
-Natural language from user.
-
-Example:
-> "build a stable bridge across this gap"
+- Natural language query
+- Current simulation state
 
 ### Output
-Structured task for Planner Agent.
-
 ```json
 {
-  "task": "build_bridge",
-  "context": "gap detected between platforms"
+  "goal": "collapse_structure",
+  "constraints": ["max_force=10", "no teleportation"]
 }
 ```
 
 ---
 
-## 2. Planner Agent (Core Intelligence Layer)
+## 2. Execution Agent
 
-### Purpose
-Converts user intent into a sequence of physics actions.
+### Role
+Executes physics actions derived from plans.
 
-### Responsibilities
-- Interpret goal
-- Break into steps
-- Ensure physical feasibility
-- Output ordered action plan
+### Allowed Tools
+- `apply_force()`
+- `spawn_object()`
+- `query_state()`
+- `step_simulation()`
 
-### Input
-Structured task from ASI:One or raw user intent.
-
-### Output
-JSON array of actions:
-
-```json
-[
-  { "action": "spawn_object", "type": "box", "x": 100, "y": 300 },
-  { "action": "spawn_object", "type": "box", "x": 100, "y": 250 }
-]
-```
-
-### Constraints
-- Must respect physics realism
-- Must not output invalid object placements
-- Must be deterministic (no free text)
-
----
-
-## 3. Controller Agent (Execution Layer)
-
-### Purpose
-Executes planner output step-by-step.
-
-### Responsibilities
-- Send actions to backend API
-- Maintain execution order
-- Handle retries on failure
-
-### Input
-Action list from Planner Agent.
-
-### Output
-Execution status logs:
-
+### Example Output
 ```json
 {
-  "status": "success",
-  "executed_actions": 5
+  "action": "apply_force",
+  "target": "object_3",
+  "vector": [1.5, 0.0]
 }
 ```
 
 ---
 
-## 4. Validator Agent (Physics Constraint System)
+## 3. Evaluation Agent
 
-### Purpose
-Ensures all actions obey physical rules before execution.
+### Role
+Evaluates correctness of simulation outcomes.
 
 ### Responsibilities
-- Check stability
-- Prevent floating objects
-- Validate collision constraints
-- Reject invalid forces
+- Compare goal vs result
+- Detect physics violations
+- Assign success score
 
-### Input
-Single action.
+---
 
-### Output
-Validation result:
+## Communication Protocol
+
+All agent messages must follow:
 
 ```json
 {
-  "valid": false,
-  "reason": "object has no support base"
+  "sender": "agent_name",
+  "receiver": "agent_name",
+  "type": "command | observation | result",
+  "payload": {}
 }
 ```
 
 ---
 
-## 5. Observer Agent (World Understanding Layer)
+## Constraints
 
-### Purpose
-Explains simulation state in natural language.
-
-### Input
-Full world state JSON.
-
-### Output
-Human-readable explanation.
-
-Example:
-> "The tower collapsed due to uneven weight distribution on the left side."
-
----
-
-## 6. System Constraints
-
-- Agents must only communicate via structured JSON
-- No direct UI manipulation allowed
-- All actions must go through Validator Agent before execution
-- Physics engine is the single source of truth
-
----
-
-## 7. Agent Interaction Flow
-
-```
-User Input
-   ↓
-ASI:One Router
-   ↓
-Planner Agent
-   ↓
-Validator Agent
-   ↓
-Controller Agent
-   ↓
-Physics Engine
-   ↓
-Observer Agent (feedback loop)
-```
+Agents MUST NOT:
+- Directly modify simulation state
+- Bypass the physics engine
+- Share hidden memory across turns
+- Generate unlimited or unbounded forces
