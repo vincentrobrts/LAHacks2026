@@ -87,6 +87,12 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
     world: { gravity: 9.8, friction: 0 },
     explanationGoal: "Show how electron transitions between energy levels determine the wavelength of emitted or absorbed photons.",
   },
+  pulley: {
+    type: "pulley",
+    params: { mass1: 3, mass2: 5, radius: 0.1, pulley_mass: 0.5 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Show how pulley radius affects rotational inertia, and how rope length changes while rope angles stay fixed.",
+  },
 };
 
 export const DEFAULT_SIMULATION = DEFAULT_CONFIGS.inclined_plane;

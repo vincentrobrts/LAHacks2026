@@ -15,6 +15,7 @@ const idle: Record<string, string> = {
   bernoulli: "Adjust the area ratio to see fluid speed up in the narrow section. Faster flow means lower pressure — Bernoulli's principle.",
   standing_waves: "Change tension, density, or harmonic number. Higher tension or lower density gives faster waves and higher frequencies.",
   bohr_model: "Select atomic number and initial/final quantum levels. Downward transitions emit photons; the wavelength reveals the energy gap.",
+  pulley: "Set the two masses and pulley radius. The heavier mass descends; a larger or heavier pulley wheel reduces acceleration by adding rotational inertia.",
 };
 
 const metricsLabel: Record<string, Record<string, string>> = {
@@ -32,6 +33,7 @@ const metricsLabel: Record<string, Record<string, string>> = {
   bernoulli: { v1: "v₁ (m/s)", v2: "v₂ (m/s)", dP: "pressure drop (Pa)" },
   standing_waves: { freq: "frequency (Hz)", wavelength: "wavelength (m)", waveSpeed: "wave speed (m/s)" },
   bohr_model: { dE: "energy gap (eV)", lambda_nm: "photon λ (nm)" },
+  pulley: { acceleration: "acceleration (m/s²)", T1: "tension T₁ (N)", T2: "tension T₂ (N)" },
 };
 
 export function buildExplanation(config: SimulationConfig, outcome: LaunchOutcome | null): string {
@@ -146,6 +148,16 @@ export function buildExplanation(config: SimulationConfig, outcome: LaunchOutcom
         `Energy ${emission ? "released" : "absorbed"}: |ΔE| = ${dE} eV. ` +
         `${lam ? `Photon wavelength λ = ${Number(lam).toFixed(1)} nm.` : "Same level — no photon."} ` +
         `${emission ? "Emission produces a spectral line." : "Absorption requires incoming photon."}`;
+    }
+    case "pulley": {
+      const a = (outcome.metrics.acceleration ?? 0).toFixed(3);
+      const t1 = (outcome.metrics.T1 ?? 0).toFixed(2);
+      const t2 = (outcome.metrics.T2 ?? 0).toFixed(2);
+      const I_eff = (0.5 * Number(p.pulley_mass)).toFixed(3);
+      return `${p.mass1} kg vs ${p.mass2} kg over a pulley (R=${p.radius} m, M=${p.pulley_mass} kg). ` +
+        `Effective rotational inertia I/R² = ½M = ${I_eff} kg. ` +
+        `System accelerates at ${a} m/s². Tensions: T₁ = ${t1} N, T₂ = ${t2} N. ` +
+        `The rope exits the wheel at fixed angles — only rope length changes as masses move.`;
     }
     default:
       return "Simulation complete.";

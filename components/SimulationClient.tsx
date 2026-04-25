@@ -50,6 +50,7 @@ const SCENARIO_LABELS: Record<string, string> = {
   bernoulli: "Bernoulli Flow",
   standing_waves: "Standing Waves",
   bohr_model: "Bohr Model",
+  pulley: "Fixed Pulley",
 };
 
 function saveHistory(prompt: string, config: SimulationConfig) {

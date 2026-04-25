@@ -87,15 +87,19 @@ function PulleyCircle({ pos }: { pos: Vec2 }) {
 
 function RopeLine({ from, pulley, to }: { from: Vec2; pulley?: Vec2; to: Vec2 }) {
   if (pulley) {
+    const PULLEY_R = 10;
+    const attach = (p: Vec2) => (p.x <= pulley.x ? { x: pulley.x - PULLEY_R, y: pulley.y } : { x: pulley.x + PULLEY_R, y: pulley.y });
+    const a1 = attach(from);
+    const a2 = attach(to);
     return (
       <>
         <line
           x1={from.x} y1={from.y}
-          x2={pulley.x} y2={pulley.y}
+          x2={a1.x} y2={a1.y}
           stroke="#4a4a4a" strokeWidth={2} strokeLinecap="round"
         />
         <line
-          x1={pulley.x} y1={pulley.y}
+          x1={a2.x} y1={a2.y}
           x2={to.x} y2={to.y}
           stroke="#4a4a4a" strokeWidth={2} strokeLinecap="round"
         />

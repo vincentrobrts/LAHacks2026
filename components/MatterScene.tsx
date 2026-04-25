@@ -10,6 +10,7 @@ import OhmLawScene from "@/components/scenes/OhmLawScene";
 import BernoulliScene from "@/components/scenes/BernoulliScene";
 import StandingWavesScene from "@/components/scenes/StandingWavesScene";
 import BohrModelScene from "@/components/scenes/BohrModelScene";
+import PulleyScene from "@/components/scenes/PulleyScene";
 
 type Props = {
   config: SimulationConfig;
@@ -1431,5 +1432,6 @@ export default function MatterScene(props: Props) {
   if (props.config.type === "bernoulli") return <BernoulliScene {...props} />;
   if (props.config.type === "standing_waves") return <StandingWavesScene {...props} />;
   if (props.config.type === "bohr_model") return <BohrModelScene {...props} />;
+  if (props.config.type === "pulley") return <PulleyScene {...props} />;
   return <PlaceholderScene {...props} />;
 }
