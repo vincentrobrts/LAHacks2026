@@ -1,81 +1,157 @@
 # Person B — Physics Simulation & Frontend
 
-You are the frontend/simulation engineer on this project. Your job is to make the simulation look great and feel responsive.
+You are the frontend/simulation engineer. Your job is to render any `SimulationConfig` that Person A produces as a live 2D Matter.js animation.
+
+## The product vision
+
+User pastes a physics problem → AI identifies the scenario and extracts parameters → Matter.js animates it live.
 
 ## Your files
 
 | File | What it does |
 |------|-------------|
-| `components/MatterScene.tsx` | Matter.js canvas — world build, launch, trajectory arc, outcome detection |
-| `components/SimulationClient.tsx` | Full sim page layout — controls, prompt panel, explanation panel, history |
-| `app/page.tsx` | Landing page — prompt input, preview SVG, history list |
-| `app/sim/page.tsx` | Thin wrapper — just renders `<SimulationClient>` in a Suspense boundary |
-| `lib/share.ts` | URL state encoding/decoding — `encodeSimulation` / `decodeSimulation` |
-| `tailwind.config.ts` | Styling config |
+| `components/MatterScene.tsx` | Matter.js canvas — needs to support multiple scene types |
+| `components/SimulationClient.tsx` | Full sim page — controls, panels, history, explanation |
+| `app/page.tsx` | Landing page — prompt input, preview, history |
+| `app/sim/page.tsx` | Thin wrapper around SimulationClient |
+| `lib/share.ts` | URL state encoding — update if schema changes |
+| `tailwind.config.ts` | Styling |
 | `app/globals.css` | Global styles |
 
 ## Your contract with Person A
 
-You consume `SimulationConfig` from `parseWithAgentverse()`. You must not change the type shape without telling Person A:
+You receive a `SimulationConfig` and render it. Never change this shape without telling Person A.
 
 ```ts
+type SimulationType =
+  | "projectile_motion"
+  | "collision_1d"
+  | "pendulum"
+  | "inclined_plane"
+  | "free_fall";
+
 type SimulationConfig = {
-  type: "projectile_knockdown";
-  projectile: {
-    speed: number;   // 8–35
-    angle: number;   // 10–75 degrees
-    mass: number;    // 0.5–2.0
-  };
+  type: SimulationType;
+  params: Record<string, number>;
   world: {
-    gravity: number;      // 1–20, Earth = 9.8
-    towerBlocks: number;  // 4–14 integer
+    gravity: number;   // m/s², Earth = 9.8
+    friction: number;  // 0–1
   };
   explanationGoal: string;
 };
 ```
 
-## Current state
+## Parameters per scenario type
 
-The simulation is fully working:
-- Matter.js engine running in `MatterScene.tsx` with ground, backstop, and block tower
-- Trajectory arc rendered as SVG overlay on top of the canvas
-- Launch button fires the projectile; outcome detected after 2600ms timeout
-- Reset button rebuilds the world via `runId` increment
-- Sliders for angle (10–75), speed (8–35), gravity (1–20) all live-update the arc
-- Share links encode full state in the URL as base64 JSON
-- Local history stores last 8 prompts in `localStorage`
+These are the exact keys you read from `params`. Always read with a fallback default.
 
-## Key implementation details
+### `projectile_motion`
+```json
+{ "angle": 38, "speed": 18, "mass": 1, "initial_height": 0 }
+```
 
-**Canvas dimensions:** `760 × 520px`, ground at `y=462`, launcher at `x=92, y=430`
+### `collision_1d`
+```json
+{ "mass1": 2, "v1": 5, "mass2": 1, "v2": -3, "restitution": 0.8 }
+```
 
-**Tower position:** centered at `x=600`, blocks are `46×24px`, alternating orange/red rows
+### `pendulum`
+```json
+{ "length": 150, "initial_angle": 45, "mass": 1 }
+```
 
-**Trajectory arc:** computed in `trajectoryPoints()` — 44 sample points using `gravity * 0.028` as the scaled gravity constant. This magic number maps `config.world.gravity` to pixel/tick units — don't change it without re-tuning
+### `inclined_plane`
+```json
+{ "angle": 30, "friction": 0.3, "mass": 1 }
+```
 
-**Outcome detection:** fires 2600ms after launch. A block "moved" if `|dx| > 18px` from tower center OR `|angle| > 0.18 rad` OR fell through ground. Success = ≥70% of blocks moved (min 4)
+### `free_fall`
+```json
+{ "height": 200, "mass": 1, "air_resistance": 0.01 }
+```
 
-**World rebuild:** controlled by `runId` state — incrementing it triggers `useEffect → buildWorld()`. Config changes that come from sliders do NOT auto-reset; only the Reset button does
+## What to build
 
-## What to work on
+### Refactor `MatterScene.tsx`
 
-The simulation works but these would improve the demo:
+The current file is hardcoded to the tower knockdown scene. Refactor it to a dispatcher:
 
-1. **Visual polish** — trajectory arc label, speed/angle indicators on the canvas, launch animation
-2. **Responsive canvas** — canvas is fixed `760×520`, doesn't scale on small screens
-3. **Sound or particle effect on impact** — optional but high demo value
-4. **Loading state** — when "Parse Prompt" is clicked, `agentverse.ts` will eventually hit a real API; add a spinner or disabled state to the button during the async call
-5. **Better outcome feedback** — the result panel is text-only; a win/fail animation would land better in a demo
+```tsx
+export default function MatterScene({ config, onOutcome }) {
+  switch (config.type) {
+    case "projectile_motion":   return <ProjectileScene config={config} onOutcome={onOutcome} />;
+    case "collision_1d":        return <CollisionScene config={config} onOutcome={onOutcome} />;
+    case "pendulum":            return <PendulumScene config={config} onOutcome={onOutcome} />;
+    case "inclined_plane":      return <InclinedPlaneScene config={config} onOutcome={onOutcome} />;
+    case "free_fall":           return <FreeFallScene config={config} onOutcome={onOutcome} />;
+  }
+}
+```
+
+Each scene is its own component that sets up a Matter.js world and calls `onOutcome` when done.
+
+### Scene implementation notes
+
+**Canvas size:** Keep `760 × 520`, ground at `y=462` — consistent across all scenes.
+
+**`projectile_motion`**
+- Launcher at bottom-left, projectile fires at `angle`/`speed`
+- No tower — just show the arc, measure range and peak height
+- `onOutcome`: `{ flightDistance, peakHeight, timeOfFlight }`
+
+**`collision_1d`**
+- Two labeled balls on a horizontal track, ground at bottom
+- Ball 1 enters from left at `v1`, ball 2 from right at `v2` (negative = leftward)
+- `restitution` controls bounce
+- `onOutcome`: `{ v1_final, v2_final, kineticEnergyLost }`
+
+**`pendulum`**
+- Pivot pinned at top-center, bob hangs at `length`, released from `initial_angle`
+- Show the arc trace
+- `onOutcome`: `{ period, maxSpeed }`
+
+**`inclined_plane`**
+- Draw a ramp at `angle` degrees, block sits at top and slides
+- `friction` is Matter.js `friction` on the block
+- `onOutcome`: `{ timeToBottom, finalSpeed }`
+
+**`free_fall`**
+- Object dropped from `height`, falls to ground
+- `air_resistance` maps to Matter.js `frictionAir`
+- `onOutcome`: `{ timeToGround, finalSpeed }`
+
+### Update `LaunchOutcome` type
+
+The current type is tower-specific. Make it generic:
+
+```ts
+type LaunchOutcome = {
+  launched: boolean;
+  success: boolean;
+  metrics: Record<string, number>; // scenario-specific values
+};
+```
+
+### Labels and annotations
+
+Each scene should draw SVG labels over the canvas (like the current trajectory arc overlay) showing:
+- Key measurements (distance, angle, velocity)
+- What to watch for
+
+### Controls panel
+
+The current sliders (angle, speed, gravity) are tower-specific. Update `SimulationClient.tsx` to show different sliders per scenario type. Only show controls that are relevant.
 
 ## What NOT to touch
 
-- `lib/agentverse.ts` — LLM call logic, that's Person A
-- `lib/parser.ts` — regex parser, that's Person A
+- `lib/agentverse.ts` — LLM call, that's Person A
+- `lib/parser.ts` — regex fallback, that's Person A
 - `lib/explanation.ts` — observer text, that's Person A
-- `lib/defaults.ts` — simulation constants, coordinate with Person A before changing
+- `app/api/parse/route.ts` — server route, that's Person A
 
 ## Hard constraints
 
-- Always keep `PERFECT_SHOT` working — it's the demo fallback if the LLM is down
-- Don't change the `SimulationConfig` type without telling Person A
-- The `onOutcome` callback in `MatterScene` must always be called — both before launch (reset state) and after launch (result)
+- Always handle unknown/missing param keys with a sensible default — don't crash if Person A sends unexpected values
+- Keep a working fallback scene for demo safety (projectile_motion with defaults)
+- `onOutcome` must always be called — once on reset (launched: false) and once after simulation runs
+- Never change param key names without telling Person A — they are set by the Gemini prompt

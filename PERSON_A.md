@@ -1,72 +1,136 @@
 # Person A — AI Agent & Parsing
 
-You are the AI/backend engineer on this project. Your job is to make natural language actually drive the simulation intelligently.
+You are the AI/backend engineer. Your job is to take any physics problem in plain English and return a typed, parameterized config that Person B can render.
+
+## The product vision
+
+User pastes a physics problem → AI identifies the scenario and extracts parameters → Matter.js animates it live.
+
+Examples:
+- "A ball rolls off a table at 2 m/s" → `projectile_motion`
+- "Two carts collide on a frictionless track" → `collision_1d`
+- "A 1kg mass hangs from a 2m string" → `pendulum`
+- "A block slides down a 30 degree ramp" → `inclined_plane`
+- "Drop a feather and a bowling ball" → `free_fall`
 
 ## Your files
 
 | File | What it does |
 |------|-------------|
-| `lib/agentverse.ts` | Entry point — currently a stub, needs real LLM call |
-| `lib/parser.ts` | Regex fallback parser — `parsePhysicsPrompt()` and `parserJson()` |
-| `lib/defaults.ts` | `DEFAULT_SIMULATION`, `PERFECT_SHOT`, `DEFAULT_PROMPT` constants |
-| `lib/explanation.ts` | `buildExplanation(config, outcome)` — generates observer panel text |
+| `lib/agentverse.ts` | Calls `/api/parse`, falls back to regex parser |
+| `lib/parser.ts` | Regex fallback — update to handle new scenario types |
+| `lib/defaults.ts` | Default configs per scenario type |
+| `lib/explanation.ts` | `buildExplanation(config, outcome)` — observer panel text |
+| `app/api/parse/route.ts` | Server-side Gemini call — this is your main file |
 
 ## Your contract with Person B
 
-You must return a `SimulationConfig` from `parseWithAgentverse()`. That's it. The frontend never changes as long as this shape is preserved:
+You return a `SimulationConfig`. Person B renders it. Never change this shape without telling them.
 
 ```ts
+type SimulationType =
+  | "projectile_motion"
+  | "collision_1d"
+  | "pendulum"
+  | "inclined_plane"
+  | "free_fall";
+
 type SimulationConfig = {
-  type: "projectile_knockdown";
-  projectile: {
-    speed: number;   // 8–35
-    angle: number;   // 10–75 degrees
-    mass: number;    // 0.5–2.0
-  };
+  type: SimulationType;
+  params: Record<string, number>;
   world: {
-    gravity: number;      // 1–20, Earth = 9.8
-    towerBlocks: number;  // 4–14 integer
+    gravity: number;   // m/s², Earth = 9.8
+    friction: number;  // 0–1
   };
-  explanationGoal: string; // sentence for the LLM explanation pass
+  explanationGoal: string;
 };
 ```
 
-## Current state
+## Parameters per scenario type
 
-`agentverse.ts` calls `parsePhysicsPrompt()` which is a regex extractor. It works for simple prompts ("speed 20, angle 45") but fails on anything creative or indirect. Replacing this with a real LLM call is the highest-impact task.
+These are the exact keys Person B will read from `params`. Do not add keys they don't expect.
+
+### `projectile_motion`
+```json
+{ "angle": 38, "speed": 18, "mass": 1, "initial_height": 0 }
+```
+- `angle`: 0–85 degrees above horizontal
+- `speed`: 5–40 m/s
+- `mass`: 0.5–5 kg
+- `initial_height`: 0–300 (pixels from ground)
+
+### `collision_1d`
+```json
+{ "mass1": 2, "v1": 5, "mass2": 1, "v2": -3, "restitution": 0.8 }
+```
+- `mass1`, `mass2`: 0.5–10 kg
+- `v1`, `v2`: -20 to 20 m/s (negative = leftward)
+- `restitution`: 0 (perfectly inelastic) – 1 (perfectly elastic)
+
+### `pendulum`
+```json
+{ "length": 150, "initial_angle": 45, "mass": 1 }
+```
+- `length`: 50–250 pixels
+- `initial_angle`: 5–80 degrees from vertical
+- `mass`: 0.5–5 kg
+
+### `inclined_plane`
+```json
+{ "angle": 30, "friction": 0.3, "mass": 1 }
+```
+- `angle`: 5–60 degrees
+- `friction`: 0–0.9
+- `mass`: 0.5–5 kg
+
+### `free_fall`
+```json
+{ "height": 200, "mass": 1, "air_resistance": 0.01 }
+```
+- `height`: 50–400 pixels from ground
+- `mass`: 0.5–10 kg
+- `air_resistance`: 0–0.1 (0 = vacuum)
 
 ## What to implement
 
-### 1. Wire a real LLM into `agentverse.ts`
+### 1. Update `types/simulation.ts`
 
-Replace the stub body. The LLM should receive the user prompt and return a valid `SimulationConfig` JSON. System prompt should:
-- Explain the schema and valid ranges
-- Ask for JSON only, no prose
-- Include `explanationGoal` describing what the observer should explain
+Replace the current `SimulationType` and `SimulationConfig` with the schema above.
 
-Example system prompt skeleton:
-```
-You are a physics simulation configurator. Given a natural language description of a projectile scenario, output ONLY valid JSON matching this schema: { type, projectile: { speed, angle, mass }, world: { gravity, towerBlocks }, explanationGoal }.
-Ranges: speed 8–35, angle 10–75, mass 0.5–2.0, gravity 1–20, towerBlocks 4–14 integer.
-```
+### 2. Update `app/api/parse/route.ts`
 
-### 2. Keep the regex parser as fallback
+Update the Gemini system prompt to:
+- List all 5 scenario types with their parameter ranges
+- Ask Gemini to identify the type from the problem, then extract parameters
+- Return JSON only, no prose
+- Default to `projectile_motion` if uncertain
 
-If the LLM call fails or times out, fall back to `parsePhysicsPrompt(prompt)`. Never throw to the user.
+### 3. Update `lib/defaults.ts`
 
-### 3. Optionally improve `buildExplanation`
+Add a default config for each scenario type so the fallback always works.
 
-After launch, `explanation.ts` generates observer text. You can upgrade it to make a second LLM call using `config` + `LaunchOutcome` + `explanationGoal` for a richer explanation. Low priority — do this only if core works.
+### 4. Update `lib/parser.ts`
+
+Update the regex fallback to at least detect the scenario type from keywords:
+- "pendulum", "string", "hang" → `pendulum`
+- "collide", "crash", "hit" → `collision_1d`
+- "ramp", "slope", "incline" → `inclined_plane`
+- "drop", "fall", "free fall" → `free_fall`
+- default → `projectile_motion`
+
+### 5. Update `lib/explanation.ts`
+
+`buildExplanation` currently has hardcoded tower text. Update it to branch on `config.type`.
 
 ## What NOT to touch
 
-- `components/MatterScene.tsx` — physics engine, that's Person B
-- `components/SimulationClient.tsx` — UI wiring, that's Person B
-- `app/page.tsx` — landing page, that's Person B
-- `lib/share.ts` — URL encoding, touch only if schema changes
+- `components/MatterScene.tsx` — that's Person B
+- `components/SimulationClient.tsx` — that's Person B
+- `app/page.tsx` — that's Person B
 
 ## Hard constraints
 
-- Never change the `SimulationConfig` type shape without telling Person B first
-- Always return a valid config — clamp values rather than erroring
-- Keep the `PERFECT_SHOT` preset working as a no-LLM fallback for demos
+- Always return a valid config with all required params — clamp and default rather than error
+- Keep `PERFECT_SHOT` or equivalent fallback working for demo safety
+- Never change param key names without telling Person B — they read these directly
+- If Gemini returns an unrecognized type, default to `projectile_motion`
