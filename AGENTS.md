@@ -1,81 +1,58 @@
-# Agent Definitions
+# Agents Specification
 
-This document defines all agents in the system.
+## MVP Agent Strategy
+Use one main agent for the hackathon demo.
 
----
+## 1. Physics Parser Agent
 
-## 1. Planner Agent
-
-### Role
-Converts user intent into structured simulation goals.
+### Purpose
+Convert natural language physics prompts into structured simulation JSON.
 
 ### Input
-- Natural language query
-- Current simulation state
+User physics prompt.
+
+Example:
+"Can I knock down the tower with one shot?"
 
 ### Output
-```json
+JSON only:
+
 {
-  "goal": "collapse_structure",
-  "constraints": ["max_force=10", "no teleportation"]
+  "type": "projectile_knockdown",
+  "projectile": {
+    "speed": 18,
+    "angle": 38,
+    "mass": 1
+  },
+  "world": {
+    "gravity": 9.8,
+    "towerBlocks": 8
+  },
+  "explanationGoal": "Explain how launch angle and speed affect the projectile path."
 }
-```
 
----
+### Constraints
+- Output JSON only.
+- If uncertain, choose the projectile_knockdown demo scenario.
+- Never return free-form text in the parser response.
 
-## 2. Execution Agent
+## 2. Optional Explanation Agent
 
-### Role
-Executes physics actions derived from plans.
+### Purpose
+Explain the current simulation state in simple educational language.
 
-### Allowed Tools
-- `apply_force()`
-- `spawn_object()`
-- `query_state()`
-- `step_simulation()`
+### Input
+Simulation state and outcome.
 
-### Example Output
-```json
-{
-  "action": "apply_force",
-  "target": "object_3",
-  "vector": [1.5, 0.0]
-}
-```
+### Output
+Short explanation:
+- what happened
+- why it happened
+- what the user should try changing
 
----
-
-## 3. Evaluation Agent
-
-### Role
-Evaluates correctness of simulation outcomes.
-
-### Responsibilities
-- Compare goal vs result
-- Detect physics violations
-- Assign success score
-
----
-
-## Communication Protocol
-
-All agent messages must follow:
-
-```json
-{
-  "sender": "agent_name",
-  "receiver": "agent_name",
-  "type": "command | observation | result",
-  "payload": {}
-}
-```
-
----
-
-## Constraints
-
-Agents MUST NOT:
-- Directly modify simulation state
-- Bypass the physics engine
-- Share hidden memory across turns
-- Generate unlimited or unbounded forces
+## Deferred Agents
+Do not implement these unless MVP is finished:
+- Controller Agent
+- Validator Agent
+- Observer Agent as separate service
+- multi-agent feedback loop

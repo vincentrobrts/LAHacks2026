@@ -1,83 +1,67 @@
-# System Architecture
+# Architecture
 
-## Overview
+## Product Goal
+Turn physics word problems into interactive visualizations.
 
-This system combines:
-- AI agents (reasoning layer)
-- Physics simulation engine (ground truth layer)
-- ASI:One / Agentverse (interaction layer)
+## MVP Demo
+Natural language input creates a projectile-motion visualization where users can adjust variables and launch a projectile into a block tower.
 
----
+## Final System Flow
 
-## Architecture Layers
+User Input
+   ↓
+Frontend
+   ↓
+Parser Layer
+   ↓
+Agentverse Agent / Local Fallback
+   ↓
+Simulation State JSON
+   ↓
+Matter.js Visualization
+   ↓
+Explanation Panel + History
 
-### 1. Agent Layer (Reasoning)
+## Core App
+Use Next.js + React + TypeScript + Tailwind.
 
-Agents:
-- Planner Agent
-- Execution Agent
-- Evaluation Agent
+## Physics Engine
+Use Matter.js in the frontend.
+Do not use PyBullet.
+Do not use a separate physics backend for MVP.
 
-Responsibilities:
-- Interpret user intent
-- Generate structured plans
-- Convert plans into tool calls
+## API Routes
+Use Next.js API routes if needed:
+- POST /api/parse
+- POST /api/explain
 
----
+## Simulation State Schema
 
-### 2. Simulation Layer (Physics Engine)
+{
+  "type": "projectile_knockdown",
+  "projectile": {
+    "speed": 18,
+    "angle": 38,
+    "mass": 1
+  },
+  "world": {
+    "gravity": 9.8,
+    "towerBlocks": 8
+  }
+}
 
-Core functions:
-- Force simulation
-- Collision detection
-- Momentum propagation
-- Timestep-based updates
+## History
+Use localStorage.
+Each saved item stores:
+- original prompt
+- simulation state
+- timestamp
 
-Key rule:
-> Agents cannot directly modify world state. All changes must pass through physics resolution.
+## Sharing
+Encode simulation state into URL query params or base64 JSON.
+No database for MVP.
 
----
-
-### 3. Interface Layer (ASI:One / Agentverse)
-
-- Receives natural language input
-- Routes to correct agent(s)
-- Handles Chat Protocol communication
-- Enables agent discovery on Agentverse
-
----
-
-## Data Flow
-
-```
-User → ASI:One → Planner → Executor → Physics Engine → Evaluator → Response
-```
-
----
-
-## Execution Loop
-
-1. Observe state
-2. Plan action
-3. Validate against rules
-4. Execute action
-5. Step physics
-6. Evaluate result
-
----
-
-## Design Philosophy
-
-- No hallucinated physics
-- Fully deterministic execution
-- Transparent agent reasoning
-- Replayable simulations
-
----
-
-## Failure Handling
-
-If instability occurs:
-- Clamp velocity/forces
-- Rollback timestep
-- Log error state explicitly
+## Agentverse
+Agentverse is a wrapper around the parser.
+It should return the same Simulation State JSON used by the frontend.
+The app must still work without Agentverse during demo.

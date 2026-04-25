@@ -1,49 +1,28 @@
-# Physics Simulation & Agent Rules
+# Rules
 
----
+## Build Priority
+1. Working demo first
+2. Clean UI second
+3. Agentverse integration third
+4. Extra physics polish last
 
-## 1. Physics Rules
+## Physics Rules
+- Use Matter.js for deterministic 2D rigid-body physics.
+- Use fixed or stable timestep where possible.
+- Prioritize visually understandable physics over perfect realism.
+- Support only the demo scenario first: projectile knocking over a block tower.
+- Do not build a general physics engine.
 
-- Conservation of energy must be preserved
-- Conservation of momentum must be preserved
-- No direct state mutation allowed
+## Agent Rules
+- Agents must output structured JSON only.
+- Agents do not directly manipulate UI.
+- Agents return actions like spawn_projectile, set_velocity, reset_world.
+- If parsing fails, fall back to demo preset.
 
----
+## Demo Reliability
+- The default demo must work without AI.
+- AI/Agentverse is an enhancement, not a dependency for the core visual demo.
+- Include a “Run Demo” button that always loads the winning scenario.
 
-## 2. Agent Rules
-
-- All actions must go through the simulation API
-- Agents must observe before acting
-- Actions must follow the structured JSON schema
-
----
-
-## 3. Simulation Rules
-
-- Fixed timestep required
-- Fully deterministic execution
-- All randomness must be seeded
-
----
-
-## 4. Safety Constraints
-
-- Force limits enforced per step
-- Velocity clamping allowed only in emergency
-- No infinite loops or runaway behavior
-
----
-
-## 5. Communication Rules
-
-- JSON-only messaging between agents
-- No hidden state sharing
-- All actions must be logged
-
----
-
-## 6. Debug Requirements
-
-- Full simulation replay must be possible
-- Every step must be logged
-- Failures must be explicit — no silent fixes
+## Logging
+- Log user input, parsed intent, agent output, actions executed, and final result.
