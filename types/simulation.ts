@@ -4,7 +4,15 @@ export type SimulationType =
   | "pendulum"
   | "inclined_plane"
   | "free_fall"
-  | "atwood_table";
+  | "atwood_table"
+  | "spring_mass"
+  | "circular_motion"
+  | "torque"
+  | "electric_field"
+  | "ohm_law"
+  | "bernoulli"
+  | "standing_waves"
+  | "bohr_model";
 
 export type SimulationConfig = {
   type: SimulationType;
