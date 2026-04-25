@@ -66,8 +66,8 @@ export function GuidedBreakdown({
           </button>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-[0.75fr_1fr_1fr]">
-        <div className="rounded-md bg-slate-100 p-3 text-sm font-bold text-slate-900">{copy.equation}</div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-md bg-slate-100 p-4 text-sm font-bold leading-6 text-slate-900">{copy.equation}</div>
         <p className="rounded-md bg-[#216869]/10 p-3 text-sm leading-6 text-slate-700">
           <span className="font-bold text-slate-950">Notice:</span> {copy.notice}
         </p>
@@ -130,10 +130,10 @@ export function InfoPanels({
     <div className="mt-4 grid gap-3 lg:grid-cols-2">
       <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
         <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
-        <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+        <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
           <div>
             <div className="font-bold text-slate-900">Given</div>
-            <p className="mt-1 leading-6">
+            <p className="mt-2 leading-7">
               {given.map(([k, v]) => (
                 <span key={k}>
                   {k} = {v}
@@ -144,18 +144,17 @@ export function InfoPanels({
           </div>
           <div>
             <div className="font-bold text-slate-900">Equations</div>
-            <p className="mt-1 leading-6">
+            <div className="mt-2 space-y-2">
               {equations.map((eq) => (
-                <span key={eq}>
+                <div key={eq} className="rounded-md bg-white px-3 py-2 font-semibold leading-6 text-slate-900">
                   {eq}
-                  <br />
-                </span>
+                </div>
               ))}
-            </p>
+            </div>
           </div>
           <div>
             <div className="font-bold text-slate-900">Results</div>
-            <p className="mt-1 leading-6">
+            <p className="mt-2 leading-7">
               {results.map(([k, v]) => (
                 <span key={k}>
                   {k} = {v}

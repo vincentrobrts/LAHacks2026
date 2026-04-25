@@ -1,11 +1,12 @@
 "use client";
 
+import { ArrowRight, History } from "lucide-react";
 import { ArrowRight, History, Sparkles, Layers } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { parseWithAgentverse } from "@/lib/agentverse";
-import { DEFAULT_PROMPT, DEMO_SHOT } from "@/lib/defaults";
+import { DEFAULT_CONFIGS, DEFAULT_PROMPT, DEMO_SHOT } from "@/lib/defaults";
 import { encodeSimulation } from "@/lib/share";
 import type { SimulationHistoryItem } from "@/types/simulation";
 
@@ -13,11 +14,11 @@ const HISTORY_KEY = "physics-visualizer-history";
 
 const EXAMPLE_PROMPTS = [
   "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
-  "A 2 kg ball is launched at 45° at 20 m/s.",
-  "Hydrogen atom electron drops from n=3 to n=1.",
-  "A 1 kg mass on a spring with k=20 N/m is pulled 0.5 m and released.",
-  "Two charges: +5 μC and −3 μC separated by 0.8 m.",
+  "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
+  "Problem: Two point charges are placed 2 meters apart. Charge 1: +3 μC. Charge 2: −2 μC. Question: What is the magnitude of the force between them? Is the force attractive or repulsive?",
 ];
+
+const ATWOOD_PROMPT = EXAMPLE_PROMPTS[1];
 
 export default function Home() {
   const router = useRouter();
@@ -65,15 +66,12 @@ export default function Home() {
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
       <section className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl content-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div>
-          <div className="mb-5 inline-flex items-center gap-2 rounded-md border border-[#216869]/25 bg-white/70 px-3 py-2 text-sm font-semibold text-[#216869] shadow-sm">
-            <Sparkles size={16} />
-            LA Hacks 2026 demo MVP
-          </div>
-          <h1 className="max-w-3xl text-5xl font-black leading-tight text-slate-950 sm:text-6xl">
-            Intuify
+          <p className="text-sm font-bold uppercase tracking-wide text-[#216869]">Intuify</p>
+          <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight text-slate-950 sm:text-6xl">
+            Turn physics word problems into interactive simulations
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">
-            Turn a textbook word problem into a live physics lab. Tune angle, friction, mass, and gravity, then watch the simulation run according to the equations.
+            Build a scene, tune the variables, and watch the equations come alive.
           </p>
 
           <div className="mt-8 rounded-lg border border-white/75 bg-white/85 p-4 shadow-glow backdrop-blur">
@@ -99,14 +97,6 @@ export default function Home() {
                 Build Simulation
                 <ArrowRight size={19} />
               </button>
-              <button onClick={() => start(true)} className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e] px-5 py-3 font-bold text-slate-950 transition hover:bg-[#e0ad36]">
-                <Sparkles size={19} />
-                Run Demo
-              </button>
-              <Link href="/compound" className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 font-bold text-slate-700 transition hover:border-[#216869] hover:text-[#216869]">
-                <Layers size={19} />
-                Compound Lab
-              </Link>
             </div>
             {message ? (
               <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">{message}</div>
@@ -117,28 +107,42 @@ export default function Home() {
         <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-glow">
           <div className="aspect-[1.08] overflow-hidden rounded-md bg-[#eef5f1] p-5">
             <div className="relative h-full rounded-md">
-              <svg viewBox="0 0 420 380" className="h-full w-full" role="img" aria-label="Inclined plane preview">
-                <path d="M72 304 L354 304 L354 142 Z" fill="#dfe8e4" stroke="#172033" strokeWidth="5" />
-                <path d="M72 304 L354 142" stroke="#172033" strokeWidth="8" strokeLinecap="round" />
-                <g transform="translate(184 240) rotate(-30)">
-                  <rect x="-35" y="-23" width="70" height="46" rx="6" fill="#216869" />
-                  <rect x="-25" y="-13" width="50" height="26" rx="4" fill="#2e8b88" />
+              <svg viewBox="0 0 420 380" className="h-full w-full" role="img" aria-label="Interactive physics preview">
+                <defs>
+                  <marker id="preview-arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
+                    <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" />
+                  </marker>
+                </defs>
+                <text x="34" y="48" fill="#172033" fontSize="18" fontWeight="900">Interactive incline</text>
+                <text x="34" y="74" fill="#475569" fontSize="14">m = 5 kg, μₖ = 0.2, d = 3 m</text>
+                <path d="M74 306 L356 306 L356 144 Z" fill="#dfe8e4" stroke="#172033" strokeWidth="5" />
+                <path d="M74 306 L356 144" stroke="#172033" strokeWidth="8" strokeLinecap="round" />
+                <path d="M278 306 A78 78 0 0 0 288.4 267.1" fill="none" stroke="#f2c14e" strokeWidth="5" />
+                <text x="252" y="292" fill="#172033" fontSize="16" fontWeight="800">30°</text>
+                <g transform="translate(205 205)">
+                  <g>
+                    <animateTransform attributeName="transform" type="translate" values="0 0; -7 4; 0 0" dur="3.2s" repeatCount="indefinite" />
+                    <g transform="rotate(-30)">
+                      <rect x="-35" y="-23" width="70" height="46" rx="6" fill="#216869" />
+                      <rect x="-25" y="-13" width="50" height="26" rx="4" fill="#2e8b88" />
+                    </g>
+                  </g>
                 </g>
-                <line x1="184" y1="240" x2="184" y2="318" stroke="#c2410c" strokeWidth="5" strokeLinecap="round" />
-                <line x1="184" y1="240" x2="224" y2="171" stroke="#1d4ed8" strokeWidth="5" strokeLinecap="round" />
-                <line x1="184" y1="240" x2="118" y2="278" stroke="#7c3aed" strokeWidth="5" strokeLinecap="round" />
-                <line x1="196" y1="262" x2="272" y2="218" stroke="#15803d" strokeWidth="5" strokeLinecap="round" />
-                <path d="M262 304 A72 72 0 0 0 292 249" fill="none" stroke="#f2c14e" strokeWidth="5" />
-                <text x="238" y="292" fill="#172033" fontSize="18" fontWeight="800">30 deg</text>
-                <text x="42" y="54" fill="#172033" fontSize="17" fontWeight="800">Inclined Plane Visualizer</text>
-                <text x="42" y="82" fill="#172033" fontSize="15">m = 5 kg, μₖ = 0.2, d = 3 m</text>
+                <g className="animate-pulse" strokeLinecap="round" strokeWidth="5" markerEnd="url(#preview-arrow)">
+                  <line x1="205" y1="205" x2="205" y2="280" stroke="#c2410c" />
+                  <line x1="197" y1="199" x2="164" y2="140" stroke="#1d4ed8" />
+                  <line x1="218" y1="218" x2="282" y2="181" stroke="#7c3aed" />
+                </g>
+                <text x="214" y="276" fill="#9a3412" fontSize="13" fontWeight="800">mg</text>
+                <text x="132" y="140" fill="#1d4ed8" fontSize="13" fontWeight="800">N</text>
+                <text x="286" y="181" fill="#6d28d9" fontSize="13" fontWeight="800">friction</text>
               </svg>
             </div>
           </div>
           <div className="mt-5">
             <h2 className="text-xl font-black text-slate-950">Physics from plain English</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              The AI parser extracts angle, mass, friction, and gravity from your problem automatically. Share links encode state in the URL.
+              Start with an inclined plane or Atwood Machine prompt, then tune the variables directly in the simulation.
             </p>
           </div>
           <div className="mt-4 rounded-md bg-slate-100 p-4">

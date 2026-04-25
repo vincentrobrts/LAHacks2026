@@ -11,9 +11,9 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
   },
   collision_1d: {
     type: "collision_1d",
-    params: { mass1: 2, v1: 5, mass2: 1, v2: -2, restitution: 0.8 },
-    world: { gravity: 9.8, friction: 0.05 },
-    explanationGoal: "Explain how momentum is conserved and how restitution affects the final velocities.",
+    params: { mass1: 2, v1: 5, mass2: 1, v2: -2, restitution: 0 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how momentum is conserved in a one-dimensional collision.",
   },
   pendulum: {
     type: "pendulum",
