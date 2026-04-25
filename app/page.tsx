@@ -43,25 +43,25 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
-      <section className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl content-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+    <main className="min-h-screen px-4 py-5 sm:px-5 lg:px-6">
+      <section className="mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-5xl content-center gap-7 lg:grid-cols-[1.05fr_0.85fr] lg:items-center">
         <div>
           <p className="text-sm font-bold uppercase tracking-wide text-[#216869]">Intuify</p>
-          <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight text-slate-950 sm:text-6xl">
+          <h1 className="mt-2 max-w-3xl text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
             Turn physics word problems into interactive simulations
           </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">
+          <p className="mt-3 max-w-2xl text-base leading-7 text-slate-700">
             Build a scene, tune the variables, and watch the equations come alive.
           </p>
 
-          <div className="mt-8 rounded-lg border border-white/75 bg-white/85 p-4 shadow-glow backdrop-blur">
+          <div className="mt-5 rounded-lg border border-white/75 bg-white/85 p-3 shadow-glow backdrop-blur">
             <label className="text-sm font-bold uppercase tracking-wide text-slate-500">Physics word problem</label>
             <textarea
               value={prompt}
               onChange={(event) => { setPrompt(event.target.value); setMessage(""); }}
-              className="mt-3 min-h-32 w-full resize-none rounded-md border border-slate-300 bg-slate-50 p-4 text-base leading-7 outline-none transition focus:border-[#216869] focus:ring-4 focus:ring-[#216869]/15"
+              className="mt-2 min-h-24 w-full resize-none rounded-md border border-slate-300 bg-slate-50 p-3 text-sm leading-6 outline-none transition focus:border-[#216869] focus:ring-4 focus:ring-[#216869]/15"
             />
-            <div className="mt-3 grid gap-2">
+            <div className="mt-2 grid gap-2">
               {EXAMPLE_PROMPTS.map((example, index) => (
                 <button
                   key={example}
@@ -72,8 +72,8 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button onClick={() => start(false)} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-5 py-3 font-bold text-white shadow-sm transition hover:bg-[#1a5556]">
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button onClick={() => start(false)} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-[#1a5556]">
                 Build Simulation
                 <ArrowRight size={19} />
               </button>
@@ -84,8 +84,8 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-glow">
-          <div className="aspect-[1.08] overflow-hidden rounded-md bg-[#eef5f1] p-5">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-glow">
+          <div className="aspect-[1.08] overflow-hidden rounded-md bg-[#eef5f1] p-4">
             <div className="relative h-full rounded-md">
               <svg viewBox="0 0 420 380" className="h-full w-full" role="img" aria-label="Interactive physics preview">
                 <defs>
@@ -119,13 +119,13 @@ export default function Home() {
               </svg>
             </div>
           </div>
-          <div className="mt-5">
-            <h2 className="text-xl font-black text-slate-950">Physics from plain English</h2>
+          <div className="mt-4">
+            <h2 className="text-lg font-black text-slate-950">Physics from plain English</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Start with an inclined plane or Atwood Machine prompt, then tune the variables directly in the simulation.
             </p>
           </div>
-          <div className="mt-4 rounded-md bg-slate-100 p-4">
+          <div className="mt-3 rounded-md bg-slate-100 p-3">
             <h3 className="inline-flex items-center gap-2 text-sm font-bold text-slate-700"><History size={16} /> Recent prompts</h3>
             <div className="mt-3 space-y-2">
               {history.length === 0 ? <p className="text-sm text-slate-500">No local history yet.</p> : null}

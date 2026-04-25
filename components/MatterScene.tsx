@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { RotateCcw, Target, Zap } from "lucide-react";
+import { RotateCcw, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LaunchOutcome, SimulationConfig } from "@/types/simulation";
 import CircularMotionScene from "@/components/scenes/CircularMotionScene";
@@ -247,7 +247,7 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
   };
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-glow">
+    <div className="rounded-xl bg-white/85 p-3 shadow-glow ring-1 ring-slate-200/60">
       <div className="relative overflow-hidden rounded-md border border-slate-200 bg-[#eef5f1]">
         <svg className="aspect-[1.46] w-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Inclined plane physics visualization">
           <defs>
@@ -287,8 +287,8 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
           <text x={componentArrow.x2 + 8} y={componentArrow.y2 + 18} fill="#166534" fontWeight="700" style={labelStyle(highlights.component)}>mg sin θ</text>
         </svg>
       </div>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70">
           <Zap size={18} />
           {running ? "Running" : "Run Animation"}
         </button>
@@ -296,12 +296,8 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
           <RotateCcw size={18} />
           Reset
         </button>
-        <div className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e]/20 px-3 py-2 text-sm font-semibold text-slate-800">
-          <Target size={17} />
-          Textbook Equations
-        </div>
       </div>
-      <section className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+      <section className={`mt-3 rounded-md bg-white/70 p-3 ring-1 ring-slate-200/50 ${running || progress > 0 ? "" : "opacity-75"}`}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div>
             <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Guided Breakdown</div>
@@ -375,7 +371,7 @@ function PlaceholderScene({ config, onOutcome }: Props) {
   }, [config, onOutcome, runId]);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-glow">
+    <div className="rounded-xl bg-white/85 p-3 shadow-glow ring-1 ring-slate-200/60">
       <div className="relative overflow-hidden rounded-md border border-slate-200 bg-[#eef5f1]">
         <canvas
           width={WIDTH}
@@ -578,7 +574,7 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
   };
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-glow">
+    <div className="rounded-xl bg-white/85 p-3 shadow-glow ring-1 ring-slate-200/60">
       <div className="relative overflow-hidden rounded-md border border-slate-200 bg-[#eef5f1]">
         <svg className="aspect-[1.46] w-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Atwood Machine physics visualization">
           <defs>
@@ -635,8 +631,8 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
           </g>
         </svg>
       </div>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <button onClick={run} disabled={running || !metrics.moves} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button onClick={run} disabled={running || !metrics.moves} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70">
           <Zap size={18} />
           {running ? "Running" : "Run Animation"}
         </button>
@@ -648,7 +644,7 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
       {!metrics.moves ? (
         <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Insufficient hanging force to overcome friction. Friction is large enough to prevent the hanging mass from accelerating the system.</div>
       ) : null}
-      <section className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+      <section className={`mt-3 rounded-md bg-white/70 p-3 ring-1 ring-slate-200/50 ${running || progress > 0 ? "" : "opacity-75"}`}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div>
             <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Guided Breakdown</div>
@@ -822,7 +818,6 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
       <div className="mt-4 flex flex-wrap gap-3">
         <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"><Zap size={18} />{running ? "In Flight…" : "Launch"}</button>
         <button onClick={reset} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:bg-slate-50"><RotateCcw size={18} />Reset</button>
-        <div className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e]/20 px-3 py-2 text-sm font-semibold text-slate-800"><Target size={17} />Textbook Equations</div>
       </div>
       <section className="mt-4 rounded-md border border-slate-200 bg-white p-4">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
@@ -958,12 +953,11 @@ function PendulumScene({ config, onOutcome }: Props) {
           <circle cx={bobX} cy={bobY} r={clamp(metrics.mass * 10 + 12, 16, 30)} fill="#216869" stroke="#172033" strokeWidth="3" />
         </svg>
       </div>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"><Zap size={18} />{running ? "Swinging…" : "Release"}</button>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"><Zap size={18} />{running ? "Swinging…" : "Release"}</button>
         <button onClick={reset} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:bg-slate-50"><RotateCcw size={18} />Reset</button>
-        <div className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e]/20 px-3 py-2 text-sm font-semibold text-slate-800"><Target size={17} />Textbook Equations</div>
       </div>
-      <section className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+      <section className={`mt-3 rounded-md bg-white/70 p-3 ring-1 ring-slate-200/50 ${running ? "" : "opacity-75"}`}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div><div className="text-xs font-bold uppercase tracking-wide text-slate-500">Guided Breakdown</div><h3 className="mt-1 text-lg font-black text-slate-950">Step {guidedStep} / 4: {stepCopy.title}</h3></div>
           <div className="flex gap-2">
@@ -1114,7 +1108,7 @@ function CollisionScene({ config, onOutcome }: Props) {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-glow">
+    <div className="rounded-xl bg-white/85 p-3 shadow-glow ring-1 ring-slate-200/60">
       <div className="relative overflow-hidden rounded-md border border-slate-200 bg-[#eef5f1]">
         <svg className="aspect-[1.46] w-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="1D collision visualization">
           <defs>
@@ -1133,12 +1127,11 @@ function CollisionScene({ config, onOutcome }: Props) {
           <text x={x2 + B2W / 2} y={blockY - 10} textAnchor="middle" fill="#7c3aed" fontSize="13" fontWeight="700">{velLabel2}</text>
         </svg>
       </div>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"><Zap size={18} />{running ? "Colliding…" : "Run Collision"}</button>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"><Zap size={18} />{running ? "Colliding…" : "Run Collision"}</button>
         <button onClick={reset} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:bg-slate-50"><RotateCcw size={18} />Reset</button>
-        <div className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e]/20 px-3 py-2 text-sm font-semibold text-slate-800"><Target size={17} />Textbook Equations</div>
       </div>
-      <section className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+      <section className={`mt-3 rounded-md bg-white/70 p-3 ring-1 ring-slate-200/50 ${running || progress > 0 ? "" : "opacity-75"}`}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div><div className="text-xs font-bold uppercase tracking-wide text-slate-500">Guided Breakdown</div><h3 className="mt-1 text-lg font-black text-slate-950">Step {guidedStep} / 4: {stepCopy.title}</h3></div>
           <div className="flex gap-2">
@@ -1247,7 +1240,7 @@ function FreeFallScene({ config, onOutcome }: Props) {
   ][guidedStep - 1];
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-glow">
+    <div className="rounded-xl bg-white/85 p-3 shadow-glow ring-1 ring-slate-200/60">
       <div className="relative overflow-hidden rounded-md border border-slate-200 bg-[#eef5f1]">
         <svg className="aspect-[1.46] w-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Free fall visualization">
           <defs>
@@ -1276,12 +1269,11 @@ function FreeFallScene({ config, onOutcome }: Props) {
           {progress >= 0.99 && <text x={cx} y={groundY + 28} textAnchor="middle" fill="#c2410c" fontSize="14" fontWeight="800">Impact: {fmt(metrics.vImpact, 2)} m/s</text>}
         </svg>
       </div>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"><Zap size={18} />{running ? "Falling…" : "Drop"}</button>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"><Zap size={18} />{running ? "Falling…" : "Drop"}</button>
         <button onClick={reset} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:bg-slate-50"><RotateCcw size={18} />Reset</button>
-        <div className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e]/20 px-3 py-2 text-sm font-semibold text-slate-800"><Target size={17} />Textbook Equations</div>
       </div>
-      <section className="mt-4 rounded-md border border-slate-200 bg-white p-4">
+      <section className={`mt-3 rounded-md bg-white/70 p-3 ring-1 ring-slate-200/50 ${running || progress > 0 ? "" : "opacity-75"}`}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div><div className="text-xs font-bold uppercase tracking-wide text-slate-500">Guided Breakdown</div><h3 className="mt-1 text-lg font-black text-slate-950">Step {guidedStep} / 4: {stepCopy.title}</h3></div>
           <div className="flex gap-2">
@@ -1432,7 +1424,6 @@ function SpringMassScene({ config, onOutcome }: Props) {
       <div className="mt-4 flex flex-wrap gap-3">
         <button onClick={run} disabled={running} className="inline-flex items-center gap-2 rounded-md bg-[#216869] px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-[#1a5556] disabled:cursor-not-allowed disabled:opacity-70"><Zap size={18} />{running ? "Oscillating…" : "Release"}</button>
         <button onClick={reset} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-800 transition hover:bg-slate-50"><RotateCcw size={18} />Reset</button>
-        <div className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e]/20 px-3 py-2 text-sm font-semibold text-slate-800"><Target size={17} />Textbook Equations</div>
       </div>
       <section className="mt-4 rounded-md border border-slate-200 bg-white p-4">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">

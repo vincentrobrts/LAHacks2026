@@ -371,16 +371,38 @@ export default function SimulationClient() {
   const paramKeys = PARAM_ORDER[config.type] ?? Object.keys(config.params);
   const visibleParams = Object.entries(config.params).filter(([key]) => paramKeys.includes(key));
   const showGravity = GRAVITY_SCENARIOS.has(config.type);
+  const hasRun = Boolean(outcome?.launched);
 
   return (
-    <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1500px]">
-        <header className="mb-5 flex flex-col justify-between gap-4 rounded-lg border border-white/70 bg-white/75 p-4 shadow-sm backdrop-blur md:flex-row md:items-center">
-          <div>
-            <Link href="/" className="text-sm font-semibold text-[#216869]">Intuify</Link>
-            <h1 className="mt-1 text-2xl font-bold text-slate-950">{scenarioLabel}</h1>
-          </div>
-          <div className="flex flex-wrap gap-2">
+    <main className="min-h-screen px-3 py-3 sm:px-4 lg:px-5">
+      <div className="mx-auto max-w-[1280px]">
+        <header className="mb-3 rounded-xl bg-white/65 p-3 shadow-sm ring-1 ring-white/70 backdrop-blur">
+          <div className="grid gap-3 lg:grid-cols-[170px_minmax(380px,1fr)_auto] lg:items-center">
+            <div>
+              <Link href="/" className="text-sm font-semibold text-[#216869]">Intuify</Link>
+              <h1 className="mt-0.5 text-xl font-black text-slate-950">{scenarioLabel}</h1>
+            </div>
+            <div>
+              <label className="sr-only">Physics Problem</label>
+              <textarea
+                value={prompt}
+                onChange={(event) => { setPrompt(event.target.value); setParseMessage(""); }}
+                className="min-h-14 w-full resize-none rounded-md border border-slate-200 bg-white/85 px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#216869] focus:ring-2 focus:ring-[#216869]/20"
+                placeholder="Describe a physics word problem..."
+              />
+              {parseMessage ? (
+                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900">{parseMessage}</p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <button
+                onClick={reparse}
+                disabled={parsing}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-2.5 font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"
+              >
+                <Clipboard size={17} />
+                {parsing ? "Parsing…" : "Build Simulation"}
+              </button>
             <button onClick={runDemo} className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e] px-4 py-2 font-bold text-slate-950 transition hover:bg-[#e0ad36]">
               <Sparkles size={18} />
               Run Demo
@@ -392,61 +414,19 @@ export default function SimulationClient() {
               <Share2 size={18} />
               Copy Share Link
             </button>
+            </div>
           </div>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[330px_minmax(520px,1fr)_340px]">
-          <aside className="space-y-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Physics Problem</h2>
-              <textarea
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                className="mt-3 min-h-28 w-full resize-none rounded-md border border-slate-300 bg-slate-50 p-3 text-sm leading-6 outline-none focus:border-[#216869] focus:ring-2 focus:ring-[#216869]/20"
-              />
-              {parseMessage ? (
-                <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">{parseMessage}</p>
-              ) : null}
-              <div className="mt-3 space-y-2">
-                {EXAMPLE_PROMPTS.map((example, index) => (
-                  <button
-                    key={example}
-                    onClick={() => {
-                      setPrompt(example);
-                      setParseMessage("");
-                    }}
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-700 transition hover:border-[#216869] hover:bg-white"
-                  >
-                    Example {index + 1}: {example}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={reparse}
-                disabled={parsing}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-2 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
-              >
-                <Clipboard size={17} />
-                {parsing ? "Parsing…" : "Build Simulation"}
-              </button>
-            </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <details className="rounded-md border border-slate-200 bg-white">
-                <summary className="cursor-pointer px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-500">Developer details</summary>
-                <pre className="max-h-72 overflow-auto border-t border-slate-200 bg-slate-950 p-3 text-xs leading-5 text-emerald-100">{parserJson(config)}</pre>
-              </details>
-            </section>
-          </aside>
-
-          <section>
+        <div className="grid gap-4 xl:grid-cols-[minmax(560px,760px)_310px] xl:justify-center">
+          <section className="min-w-0">
             <MatterScene config={config} onOutcome={setOutcome} onLoadAtwoodExample={loadAtwoodExample} />
           </section>
 
-          <aside className="space-y-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <aside className="space-y-3 xl:sticky xl:top-3 xl:self-start">
+            <section className="rounded-xl bg-white/70 p-3 shadow-sm ring-1 ring-slate-200/50">
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Controls</h2>
-              <div className="mt-4 space-y-5">
+              <div className="mt-3 space-y-4">
                 {showGravity ? <label className="block">
                   <span className="flex justify-between text-sm font-semibold">
                     <span>{paramLabel(config.type, "gravity")}</span>
@@ -462,43 +442,74 @@ export default function SimulationClient() {
                 {visibleParams.map(([key, value]) => {
                   const range = sliderRange(config.type, key);
                   return (
-                  <label key={key} className="block">
-                    <span className="flex justify-between text-sm font-semibold">
-                      <span>{paramLabel(config.type, key)}</span>
-                      <span>{Number(value).toFixed(1)}{key === "mass" || key === "mass1" || key === "mass2" ? " kg" : ""}</span>
-                    </span>
-                    <input
-                      className="mt-2 w-full"
-                      type="range"
-                      min={range.min}
-                      max={range.max}
-                      step={range.step}
-                      value={value}
-                      onChange={(e) => updateParam(key, Number(e.target.value))}
-                    />
-                  </label>
+                    <label key={key} className="block">
+                      <span className="flex justify-between gap-3 text-sm font-semibold">
+                        <span>{paramLabel(config.type, key)}</span>
+                        <span>{Number(value).toFixed(1)}{key === "mass" || key === "mass1" || key === "mass2" ? " kg" : ""}</span>
+                      </span>
+                      <input
+                        className="mt-2 w-full"
+                        type="range"
+                        min={range.min}
+                        max={range.max}
+                        step={range.step}
+                        value={value}
+                        onChange={(e) => updateParam(key, Number(e.target.value))}
+                      />
+                    </label>
                   );
                 })}
               </div>
             </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Explanation</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-700">{shownExplanation}</p>
+            <section className={`rounded-xl bg-white/75 p-3 shadow-sm ring-1 ring-slate-200/60 transition ${hasRun ? "ring-[#216869]/25" : ""}`}>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Results</h2>
               {outcome?.launched && Object.keys(outcome.metrics).length > 0 ? (
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   {Object.entries(outcome.metrics).map(([key, val]) => (
-                    <div key={key} className="rounded-md bg-slate-100 p-3">
+                    <div key={key} className="rounded-md bg-[#216869]/10 p-2">
                       <div className="font-bold">{Number(val).toFixed(2)}</div>
-                      <div className="text-slate-600 text-xs">{key.replace(/_/g, " ")}</div>
+                      <div className="text-xs text-slate-600">{key.replace(/_/g, " ")}</div>
                     </div>
                   ))}
                 </div>
-              ) : null}
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-slate-600">Run the animation to see live results here.</p>
+              )}
             </section>
+            <section className={`rounded-xl bg-white/65 p-3 transition ${hasRun ? "shadow-sm ring-1 ring-[#216869]/20" : "opacity-75 ring-1 ring-slate-200/40"}`}>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Insight</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{hasRun ? shownExplanation : "Run the animation to unlock the explanation and results."}</p>
+            </section>
+            <section className="rounded-xl bg-white/55 p-3 ring-1 ring-slate-200/40">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Learning Flow</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Use the controls attached to the stage, run the animation, then step through the guided breakdown below the visual.</p>
+            </section>
+          </aside>
+        </div>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500"><History size={16} /> Local History</h2>
+        <section className="mt-4 rounded-xl bg-white/45 p-3 ring-1 ring-slate-200/40">
+          <details>
+            <summary className="cursor-pointer text-sm font-bold uppercase tracking-wide text-slate-500">Examples, History, and Developer Details</summary>
+            <div className="mt-3 grid gap-3 lg:grid-cols-3">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Examples</h3>
+                <div className="mt-2 space-y-2">
+                  {EXAMPLE_PROMPTS.map((example, index) => (
+                    <button
+                      key={example}
+                      onClick={() => {
+                        setPrompt(example);
+                        setParseMessage("");
+                      }}
+                      className="w-full rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-left text-xs font-semibold leading-5 text-slate-700 transition hover:border-[#216869] hover:bg-white"
+                    >
+                      Example {index + 1}: {example}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+              <h3 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500"><History size={16} /> Local History</h3>
               <div className="mt-3 space-y-2">
                 {history.length === 0 ? <p className="text-sm text-slate-500">Parsed prompts will appear here.</p> : null}
                 {history.map((item) => (
@@ -516,9 +527,14 @@ export default function SimulationClient() {
                   </button>
                 ))}
               </div>
-            </section>
-          </aside>
-        </div>
+              </div>
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Developer Details</h3>
+                <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-emerald-100">{parserJson(config)}</pre>
+              </div>
+            </div>
+          </details>
+        </section>
       </div>
     </main>
   );
