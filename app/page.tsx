@@ -48,10 +48,10 @@ export default function Home() {
         <div>
           <p className="text-sm font-bold uppercase tracking-wide text-[#216869]">Intuify</p>
           <h1 className="mt-2 max-w-3xl text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
-            Turn physics word problems into interactive simulations
+            From text to physics in real time
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-slate-700">
-            Build a scene, tune the variables, and watch the equations come alive.
+            Explore how systems behave, not just how they’re solved.
           </p>
 
           <div className="mt-5 rounded-lg border border-white/75 bg-white/85 p-3 shadow-glow backdrop-blur">
@@ -120,9 +120,9 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-4">
-            <h2 className="text-lg font-black text-slate-950">Physics from plain English</h2>
+            <h2 className="text-lg font-black text-slate-950">Live system</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Start with an inclined plane or Atwood Machine prompt, then tune the variables directly in the simulation.
+              Start with a problem, then interact with the system it creates.
             </p>
           </div>
           <div className="mt-3 rounded-md bg-slate-100 p-3">

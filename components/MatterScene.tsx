@@ -711,7 +711,9 @@ function projectileMetrics(config: SimulationConfig) {
   const range = vx * tof;
   const peakTime = vy / gravity;
   const peakHeight = Math.max(0, h0 + (vy * vy) / (2 * gravity));
-  return { angle, speed, vx, vy, gravity, mass, h0, tof, range, peakHeight, peakTime };
+  const finalVy = vy - gravity * tof;
+  const finalSpeed = Math.sqrt(vx * vx + finalVy * finalVy);
+  return { angle, speed, vx, vy, gravity, mass, h0, tof, range, peakHeight, peakTime, finalSpeed };
 }
 
 function ProjectileMotionScene({ config, onOutcome }: Props) {
@@ -723,23 +725,27 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
   const frameRef = useRef<number | null>(null);
 
   const GY = 430; const LX = 80; const TW = 600; const TH = 310;
+  const maxX = Math.max(metrics.range, 1);
+  const maxY = Math.max(metrics.peakHeight, metrics.h0, 1);
   const toSVG = (x_m: number, y_m: number) => ({
-    x: LX + (metrics.range > 0 ? (x_m / metrics.range) * TW : 0),
-    y: GY - (metrics.peakHeight > 0 ? clamp((y_m / metrics.peakHeight) * TH, 0, TH + 60) : 0),
+    x: LX + clamp(x_m / maxX, 0, 1) * TW,
+    y: GY - clamp(y_m / maxY, 0, 1.08) * TH,
   });
   const t_now = progress * metrics.tof;
-  const ballSVG = toSVG(metrics.vx * t_now, Math.max(0, metrics.vy * t_now - 0.5 * metrics.gravity * t_now * t_now));
+  const currentHeight = Math.max(0, metrics.h0 + metrics.vy * t_now - 0.5 * metrics.gravity * t_now * t_now);
+  const ballSVG = toSVG(metrics.vx * t_now, currentHeight);
   const pathPts = Array.from({ length: 51 }, (_, i) => {
     const t = (i / 50) * metrics.tof;
-    const s = toSVG(metrics.vx * t, Math.max(0, metrics.vy * t - 0.5 * metrics.gravity * t * t));
+    const s = toSVG(metrics.vx * t, Math.max(0, metrics.h0 + metrics.vy * t - 0.5 * metrics.gravity * t * t));
     return `${s.x.toFixed(1)},${s.y.toFixed(1)}`;
   }).join(" ");
+  const launchPoint = toSVG(0, metrics.h0);
 
   useEffect(() => {
     setProgress(0); setRunning(false); setCurrentY(0);
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
     onOutcome({ launched: false, success: false, metrics: {} });
-  }, [metrics.angle, metrics.speed, metrics.gravity, onOutcome]);
+  }, [metrics.angle, metrics.speed, metrics.gravity, metrics.h0, onOutcome]);
 
   const run = useCallback(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -751,10 +757,10 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
       const p = clamp((now - startedAt) / dur, 0, 1);
       const t = p * metrics.tof;
       setProgress(p);
-      setCurrentY(Math.max(0, metrics.vy * t - 0.5 * metrics.gravity * t * t));
+      setCurrentY(Math.max(0, metrics.h0 + metrics.vy * t - 0.5 * metrics.gravity * t * t));
       if (p < 1) { frameRef.current = requestAnimationFrame(tick); return; }
       setRunning(false);
-      onOutcome({ launched: true, success: true, metrics: { range_m: metrics.range, peak_height_m: metrics.peakHeight, time_of_flight_s: metrics.tof } });
+      onOutcome({ launched: true, success: true, metrics: { range_m: metrics.range, peak_height_m: metrics.peakHeight, time_of_flight_s: metrics.tof, final_speed_m_s: metrics.finalSpeed } });
     };
     frameRef.current = requestAnimationFrame(tick);
   }, [metrics, onOutcome]);
@@ -768,13 +774,13 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
 
   const AL = 54;
   const theta_r = (metrics.angle * Math.PI) / 180;
-  const vxEnd = { x: LX + (metrics.vx / metrics.speed) * AL, y: GY };
-  const vyEnd = { x: LX, y: GY - (metrics.vy / metrics.speed) * AL };
+  const vxEnd = { x: launchPoint.x + (metrics.vx / metrics.speed) * AL, y: launchPoint.y };
+  const vyEnd = { x: launchPoint.x, y: launchPoint.y - (metrics.vy / metrics.speed) * AL };
 
   const stepCopy = [
     { title: "Launch Conditions", equation: `v₀ = ${fmt(metrics.speed)} m/s at θ = ${metrics.angle}°`, notice: "Launch angle and speed fully determine the trajectory when air resistance is zero.", diagram: "The gold arrow shows the initial velocity vector at the launch point." },
-    { title: "Velocity Components", equation: `vₓ = ${fmt(metrics.vx)} m/s,  vy = ${fmt(metrics.vy)} m/s`, notice: "Horizontal velocity stays constant. Vertical velocity decreases at g until peak, then increases downward.", diagram: "Blue = vₓ (constant horizontal), red = vy (decreasing vertical component)." },
-    { title: "Equations of Motion", equation: "x = vₓt,  y = vyt − ½gt²", notice: "The two axes are completely independent. The parabolic shape comes from constant vₓ and linearly changing vy.", diagram: "The dashed arc shows the full parabolic trajectory from launch to landing." },
+    { title: "Velocity Components", equation: `vₓ = ${fmt(metrics.vx)} m/s,  vᵧ = ${fmt(metrics.vy)} m/s`, notice: "Horizontal velocity stays constant. Vertical velocity decreases at g until peak, then increases downward.", diagram: "Blue = vₓ (constant horizontal), red = vᵧ (decreasing vertical component)." },
+    { title: "Equations of Motion", equation: "x = vₓt,  y = h₀ + vᵧt - ½gt²", notice: "The two axes are completely independent. The parabolic shape comes from constant vₓ and linearly changing vᵧ.", diagram: "The dashed arc shows the full parabolic trajectory from launch to landing." },
     { title: "Flight and Landing", equation: `R = ${fmt(metrics.range)} m,  h_peak = ${fmt(metrics.peakHeight)} m`, notice: `Peak is at t = ${fmt(metrics.peakTime)} s when vy = 0. Range is maximized at 45° for flat ground.`, diagram: "Watch the ball arc. Speed is scaled for visibility — actual physics time is " + fmt(metrics.tof) + " s." },
   ][guidedStep - 1];
 
@@ -788,31 +794,33 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
           <rect width={WIDTH} height={HEIGHT} fill="#eef5f1" />
           <rect x="0" y={GY} width={WIDTH} height={HEIGHT - GY} fill="#d4e4dc" />
           <line x1="0" y1={GY} x2={WIDTH} y2={GY} stroke="#172033" strokeWidth="5" />
-          <rect x={LX - 22} y={GY - 14} width="44" height="14" rx="4" fill="#172033" />
-          <rect x={LX - 6} y={GY - 32} width="12" height="26" rx="3" fill="#2f3d3f" transform={`rotate(-${metrics.angle} ${LX} ${GY})`} />
-          {guidedStep >= 3 && <polyline points={pathPts} fill="none" stroke="#216869" strokeWidth="3" strokeDasharray="10 6" opacity="0.5" />}
-          {guidedStep >= 3 && <circle cx={ballSVG.x} cy={ballSVG.y} r="14" fill="#216869" stroke="#172033" strokeWidth="3" />}
-          {guidedStep >= 3 && metrics.range > 0 && (
+          <line x1={LX - 12} y1={launchPoint.y} x2={LX + TW + 14} y2={launchPoint.y} stroke="#94a3b8" strokeWidth="2" strokeDasharray="6 5" opacity="0.5" />
+          <rect x={launchPoint.x - 22} y={launchPoint.y - 14} width="44" height="14" rx="4" fill="#172033" />
+          <rect x={launchPoint.x - 6} y={launchPoint.y - 32} width="12" height="26" rx="3" fill="#2f3d3f" transform={`rotate(-${metrics.angle} ${launchPoint.x} ${launchPoint.y})`} />
+          <polyline points={pathPts} fill="none" stroke="#216869" strokeWidth="3" strokeDasharray="10 6" opacity={guidedStep >= 3 ? 0.75 : 0.42} />
+          <circle cx={ballSVG.x} cy={ballSVG.y} r="14" fill="#216869" stroke="#172033" strokeWidth="3" />
+          {metrics.range > 0 && (
             <>
               <line x1={LX + TW} y1={GY - 28} x2={LX + TW} y2={GY + 12} stroke="#f2c14e" strokeWidth="3" />
               <text x={LX + TW - 66} y={GY + 30} fill="#172033" fontSize="13" fontWeight="700">R = {fmt(metrics.range)} m</text>
             </>
           )}
-          {guidedStep === 1 && (
+          {(guidedStep === 1 || !running) && (
             <g color="#f2c14e" stroke="currentColor" markerEnd="url(#pm-arr)" strokeWidth="5" className="animate-pulse drop-shadow-[0_0_8px_rgba(242,193,78,0.9)]">
-              <line x1={LX} y1={GY} x2={LX + Math.cos(theta_r) * AL} y2={GY - Math.sin(theta_r) * AL} />
+              <line x1={launchPoint.x} y1={launchPoint.y} x2={launchPoint.x + Math.cos(theta_r) * AL} y2={launchPoint.y - Math.sin(theta_r) * AL} />
             </g>
           )}
           {guidedStep === 2 && (
             <>
-              <g color="#1d4ed8" stroke="currentColor" markerEnd="url(#pm-arr)" strokeWidth="5" className="animate-pulse"><line x1={LX} y1={GY} x2={vxEnd.x} y2={vxEnd.y} /></g>
-              <text x={vxEnd.x + 6} y={GY + 5} fill="#1d4ed8" fontSize="13" fontWeight="700">vₓ</text>
-              <g color="#c2410c" stroke="currentColor" markerEnd="url(#pm-arr)" strokeWidth="5" className="animate-pulse"><line x1={LX} y1={GY} x2={vyEnd.x} y2={vyEnd.y} /></g>
-              <text x={LX + 8} y={vyEnd.y - 5} fill="#c2410c" fontSize="13" fontWeight="700">vy</text>
+              <g color="#1d4ed8" stroke="currentColor" markerEnd="url(#pm-arr)" strokeWidth="5" className="animate-pulse"><line x1={launchPoint.x} y1={launchPoint.y} x2={vxEnd.x} y2={vxEnd.y} /></g>
+              <text x={vxEnd.x + 6} y={launchPoint.y + 5} fill="#1d4ed8" fontSize="13" fontWeight="700">vₓ</text>
+              <g color="#c2410c" stroke="currentColor" markerEnd="url(#pm-arr)" strokeWidth="5" className="animate-pulse"><line x1={launchPoint.x} y1={launchPoint.y} x2={vyEnd.x} y2={vyEnd.y} /></g>
+              <text x={launchPoint.x + 8} y={vyEnd.y - 5} fill="#c2410c" fontSize="13" fontWeight="700">vᵧ</text>
             </>
           )}
-          <path d={`M ${LX + 46} ${GY} A 46 46 0 0 0 ${LX + 46 * Math.cos(theta_r)} ${GY - 46 * Math.sin(theta_r)}`} fill="none" stroke="#f2c14e" strokeWidth="4" />
-          <text x={LX + 52} y={GY - 8} fill="#172033" fontSize="13" fontWeight="700">θ={metrics.angle}°</text>
+          <path d={`M ${launchPoint.x + 46} ${launchPoint.y} A 46 46 0 0 0 ${launchPoint.x + 46 * Math.cos(theta_r)} ${launchPoint.y - 46 * Math.sin(theta_r)}`} fill="none" stroke="#f2c14e" strokeWidth="4" />
+          <text x={launchPoint.x + 52} y={launchPoint.y - 8} fill="#172033" fontSize="13" fontWeight="700">θ={metrics.angle}°</text>
+          <text x={launchPoint.x - 8} y={launchPoint.y - 42} textAnchor="end" fill="#475569" fontSize="12" fontWeight="700">h₀ = {fmt(metrics.h0, 1)} m</text>
         </svg>
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
@@ -837,9 +845,9 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
           <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
-            <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">v₀ = {fmt(metrics.speed, 1)} m/s<br />θ = {metrics.angle}°<br />g = {fmt(metrics.gravity, 1)} m/s²</p></div>
-            <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">vₓ = v₀cosθ<br />vy = v₀sinθ<br />y = vyt − ½gt²<br />R = vₓ · t_f</p></div>
-            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">vₓ = {fmt(metrics.vx)} m/s<br />vy = {fmt(metrics.vy)} m/s<br />t_peak = {fmt(metrics.peakTime)} s</p></div>
+            <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">v₀ = {fmt(metrics.speed, 1)} m/s<br />θ = {metrics.angle}°<br />m = {fmt(metrics.mass, 1)} kg<br />h₀ = {fmt(metrics.h0, 1)} m<br />g = {fmt(metrics.gravity, 1)} m/s²</p></div>
+            <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">vₓ = v₀cosθ<br />vᵧ = v₀sinθ<br />y = h₀ + vᵧt − ½gt²<br />R = vₓ · t_f</p></div>
+            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">vₓ = {fmt(metrics.vx)} m/s<br />vᵧ = {fmt(metrics.vy)} m/s<br />t_peak = {fmt(metrics.peakTime)} s</p></div>
           </div>
         </section>
         <section className="rounded-md border border-slate-200 bg-white p-4">
@@ -849,6 +857,8 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
             <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Range:</span> {fmt(metrics.range)} m</div>
             <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Peak height:</span> {fmt(metrics.peakHeight)} m</div>
             <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Time of flight:</span> {fmt(metrics.tof)} s</div>
+            <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Final speed:</span> {fmt(metrics.finalSpeed)} m/s</div>
+            <div className="rounded-md border border-slate-200 bg-white p-3 text-slate-600">Mass is shown for context; ideal projectile motion here ignores air resistance, so mass does not change the path.</div>
           </div>
         </section>
       </div>
@@ -859,17 +869,17 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
 // ── Pendulum ──────────────────────────────────────────────────────────────────
 
 function pendulumMetrics(config: SimulationConfig) {
-  const lengthPx = clamp(config.params.length ?? 150, 10, 250);
+  const lengthInput = clamp(config.params.length ?? 150, 0.2, 250);
   const initialAngle = clamp(config.params.initial_angle ?? 45, 5, 80);
   const mass = clamp(config.params.mass ?? 1, 0.5, 5);
   const gravity = clamp(config.world.gravity, 1, 20);
-  const L_m = lengthPx / 50;
+  const L_m = lengthInput > 10 ? lengthInput / 50 : lengthInput;
   const theta0 = (initialAngle * Math.PI) / 180;
   const period = 2 * Math.PI * Math.sqrt(L_m / gravity);
   const omega = (2 * Math.PI) / period;
   const maxSpeed = Math.sqrt(2 * gravity * L_m * (1 - Math.cos(theta0)));
   const maxHeight = L_m * (1 - Math.cos(theta0));
-  return { lengthPx, initialAngle, mass, gravity, L_m, theta0, period, omega, maxSpeed, maxHeight };
+  return { lengthInput, initialAngle, mass, gravity, L_m, theta0, period, omega, maxSpeed, maxHeight };
 }
 
 function PendulumScene({ config, onOutcome }: Props) {
@@ -881,7 +891,7 @@ function PendulumScene({ config, onOutcome }: Props) {
   const startRef = useRef<number>(0);
 
   const pivotX = WIDTH / 2; const pivotY = 72;
-  const armPx = clamp(90 + metrics.L_m * 50, 115, 330);
+  const armPx = clamp(55 + metrics.L_m * 55, 66, 330);
   const bobX = pivotX + Math.sin(angle) * armPx;
   const bobY = pivotY + Math.cos(angle) * armPx;
   const arcR = Math.min(armPx * 0.55, 100);
@@ -891,7 +901,7 @@ function PendulumScene({ config, onOutcome }: Props) {
     setAngle(metrics.theta0);
     setRunning(false);
     onOutcome({ launched: false, success: false, metrics: {} });
-  }, [metrics.theta0, metrics.omega, metrics.period, onOutcome]);
+  }, [metrics.theta0, metrics.omega, metrics.period, metrics.L_m, onOutcome]);
 
   const run = useCallback(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -1191,11 +1201,6 @@ function FreeFallScene({ config, onOutcome }: Props) {
 
   const topY = 60; const groundY = 440; const cx = WIDTH / 2;
   const ballR = clamp(12 + Math.sqrt(metrics.mass) * 7, 15, 48);
-  const fallingObjects = [
-    { x: cx - 95, r: clamp(ballR * 0.72, 13, 34), label: "light" },
-    { x: cx, r: ballR, label: `${fmt(metrics.mass, 1)} kg` },
-    { x: cx + 95, r: clamp(ballR * 1.18, 18, 54), label: "heavy" },
-  ];
   const ballY = (r: number) => topY + r + progress * (groundY - topY - 2 * r);
   const speedNow = metrics.gravity * (progress * metrics.tof);
   const arrowLen = clamp(speedNow * 6, 0, 70);
@@ -1260,12 +1265,8 @@ function FreeFallScene({ config, onOutcome }: Props) {
                 <line x1={cx} y1={ballY(ballR) + ballR + 4} x2={cx} y2={ballY(ballR) + ballR + 4 + arrowLen} />
               </g>
             )}
-          {fallingObjects.map((object, index) => (
-            <g key={object.label}>
-              <circle cx={object.x} cy={ballY(object.r)} r={object.r} fill={index === 1 ? "#216869" : "#7aa6a3"} stroke="#172033" strokeWidth="3" opacity={index === 1 ? 1 : 0.78} />
-              <text x={object.x} y={ballY(object.r) + object.r + 18} textAnchor="middle" fill="#172033" fontSize="12" fontWeight="800">{object.label}</text>
-            </g>
-          ))}
+          <circle cx={cx} cy={ballY(ballR)} r={ballR} fill="#216869" stroke="#172033" strokeWidth="3" />
+          <text x={cx} y={ballY(ballR) + ballR + 18} textAnchor="middle" fill="#172033" fontSize="12" fontWeight="800">{fmt(metrics.mass, 1)} kg</text>
           {progress >= 0.99 && <text x={cx} y={groundY + 28} textAnchor="middle" fill="#c2410c" fontSize="14" fontWeight="800">Impact: {fmt(metrics.vImpact, 2)} m/s</text>}
         </svg>
       </div>
