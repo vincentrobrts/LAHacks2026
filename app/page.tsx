@@ -4,7 +4,7 @@ import { ArrowRight, History, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { parseWithAgentverse } from "@/lib/agentverse";
-import { DEFAULT_PROMPT, PERFECT_SHOT } from "@/lib/defaults";
+import { DEFAULT_PROMPT, DEMO_SHOT } from "@/lib/defaults";
 import { encodeSimulation } from "@/lib/share";
 import type { SimulationHistoryItem } from "@/types/simulation";
 
@@ -20,7 +20,7 @@ export default function Home() {
   }, []);
 
   const start = async (perfect = false) => {
-    const config = perfect ? PERFECT_SHOT : await parseWithAgentverse(prompt);
+    const config = perfect ? DEMO_SHOT : await parseWithAgentverse(prompt);
     const nextPrompt = perfect ? "Run Perfect Shot demo" : prompt;
     const item: SimulationHistoryItem = {
       id: crypto.randomUUID(),
@@ -44,7 +44,7 @@ export default function Home() {
             Physics Visualizer
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">
-            Turn a word problem into a live projectile-motion lab. Tune speed, angle, and gravity, then watch Matter.js decide whether one shot can topple the tower.
+            Paste any physics problem in plain English and watch it come to life as a 2D simulation. Tweak the parameters in real time and see the physics change instantly.
           </p>
 
           <div className="mt-8 rounded-lg border border-white/75 bg-white/85 p-4 shadow-glow backdrop-blur">

@@ -1,31 +1,45 @@
-import type { SimulationConfig } from "@/types/simulation";
+import type { SimulationConfig, SimulationType } from "@/types/simulation";
 
-export const DEFAULT_PROMPT = "Can I knock down the tower with one shot?";
+export const DEFAULT_PROMPT = "A ball is launched at 38 degrees with a speed of 18 m/s. How far does it travel?";
 
-export const DEFAULT_SIMULATION: SimulationConfig = {
-  type: "projectile_knockdown",
-  projectile: {
-    speed: 18,
-    angle: 38,
-    mass: 1
+export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
+  projectile_motion: {
+    type: "projectile_motion",
+    params: { angle: 38, speed: 18, mass: 1, initial_height: 0 },
+    world: { gravity: 9.8, friction: 0.1 },
+    explanationGoal: "Explain how launch angle and speed affect the range and peak height of the projectile.",
   },
-  world: {
-    gravity: 9.8,
-    towerBlocks: 8
+  collision_1d: {
+    type: "collision_1d",
+    params: { mass1: 2, v1: 5, mass2: 1, v2: -2, restitution: 0.8 },
+    world: { gravity: 9.8, friction: 0.05 },
+    explanationGoal: "Explain how momentum is conserved and how restitution affects the final velocities.",
   },
-  explanationGoal: "Explain how launch angle and speed affect the projectile path."
+  pendulum: {
+    type: "pendulum",
+    params: { length: 150, initial_angle: 45, mass: 1 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how pendulum length and initial angle affect the period and maximum speed.",
+  },
+  inclined_plane: {
+    type: "inclined_plane",
+    params: { angle: 30, friction: 0.3, mass: 1 },
+    world: { gravity: 9.8, friction: 0.3 },
+    explanationGoal: "Explain how the ramp angle and friction coefficient affect how fast the block slides.",
+  },
+  free_fall: {
+    type: "free_fall",
+    params: { height: 200, mass: 1, air_resistance: 0 },
+    world: { gravity: 9.8, friction: 0 },
+    explanationGoal: "Explain how gravity and air resistance affect the time and speed of the falling object.",
+  },
 };
 
-export const PERFECT_SHOT: SimulationConfig = {
-  type: "projectile_knockdown",
-  projectile: {
-    speed: 24,
-    angle: 27,
-    mass: 1.4
-  },
-  world: {
-    gravity: 9.8,
-    towerBlocks: 8
-  },
-  explanationGoal: "Explain why this launch has enough horizontal speed to topple the tower."
+export const DEFAULT_SIMULATION = DEFAULT_CONFIGS.projectile_motion;
+
+export const DEMO_SHOT: SimulationConfig = {
+  type: "projectile_motion",
+  params: { angle: 45, speed: 25, mass: 1, initial_height: 0 },
+  world: { gravity: 9.8, friction: 0.1 },
+  explanationGoal: "Explain why 45 degrees gives maximum range on flat ground.",
 };
