@@ -1,6 +1,6 @@
 "use client";
 
-import { Clipboard, History, Share2, Sparkles } from "lucide-react";
+import { Clipboard, History, Layers, Share2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -119,7 +119,22 @@ export default function SimulationClient() {
     updateShareUrl(next);
   };
 
+  const isCompoundPrompt = (text: string) => {
+    const t = text.toLowerCase();
+    return (
+      (t.includes("pulley") && (t.includes("ramp") || t.includes("hanging") || t.includes("spring") || t.includes("connected"))) ||
+      (t.includes("ramp") && t.includes("connected")) ||
+      t.includes("atwood") ||
+      t.includes("battery") || t.includes("resistor") || t.includes("capacitor") || t.includes("circuit") ||
+      (t.includes("spring") && t.includes("pulley"))
+    );
+  };
+
   const reparse = async () => {
+    if (isCompoundPrompt(prompt)) {
+      router.push(`/compound?prompt=${encodeURIComponent(prompt)}`);
+      return;
+    }
     setParsing(true);
     setParseMessage("");
     try {
@@ -175,6 +190,10 @@ export default function SimulationClient() {
             <h1 className="mt-1 text-2xl font-bold text-slate-950">{scenarioLabel}</h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href="/compound" className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:border-[#216869] hover:text-[#216869]">
+              <Layers size={18} />
+              Compound Lab
+            </Link>
             <button onClick={runDemo} className="inline-flex items-center gap-2 rounded-md bg-[#f2c14e] px-4 py-2 font-bold text-slate-950 transition hover:bg-[#e0ad36]">
               <Sparkles size={18} />
               Run Demo

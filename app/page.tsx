@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRight, History, Sparkles } from "lucide-react";
+import { ArrowRight, History, Sparkles, Layers } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { parseWithAgentverse } from "@/lib/agentverse";
@@ -28,8 +29,26 @@ export default function Home() {
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
   }, []);
 
+  const isCompoundPrompt = (text: string) => {
+    const t = text.toLowerCase();
+    return (
+      (t.includes("pulley") && (t.includes("ramp") || t.includes("hanging") || t.includes("spring") || t.includes("connected"))) ||
+      (t.includes("ramp") && t.includes("connected")) ||
+      t.includes("atwood") ||
+      t.includes("battery") ||
+      t.includes("resistor") ||
+      t.includes("capacitor") ||
+      t.includes("circuit") ||
+      (t.includes("spring") && t.includes("pulley"))
+    );
+  };
+
   const start = async (perfect = false) => {
     setMessage("");
+    if (!perfect && isCompoundPrompt(prompt)) {
+      router.push(`/compound?prompt=${encodeURIComponent(prompt)}`);
+      return;
+    }
     const config = perfect ? DEMO_SHOT : await parseWithAgentverse(prompt);
     const nextPrompt = perfect ? DEFAULT_PROMPT : prompt;
     const item: SimulationHistoryItem = {
@@ -84,6 +103,10 @@ export default function Home() {
                 <Sparkles size={19} />
                 Run Demo
               </button>
+              <Link href="/compound" className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 font-bold text-slate-700 transition hover:border-[#216869] hover:text-[#216869]">
+                <Layers size={19} />
+                Compound Lab
+              </Link>
             </div>
             {message ? (
               <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold leading-5 text-amber-900">{message}</div>
