@@ -37,9 +37,9 @@ const STEPS = [
     diagram: "The beam rotates downward from the wall pivot under the applied load.",
   },
   {
-    title: "Lower Stop",
+    title: "Support Limit",
     equation: "θ stops at the support limit",
-    notice: "The support prevents endless rotation, so the beam settles against a physical lower stop.",
+    notice: "The support prevents endless rotation, so the beam settles against a physical limit.",
     diagram: "The orange stop line is the hard limit for this visual model.",
   },
 ];
@@ -65,6 +65,12 @@ export default function TorqueScene({ config, onOutcome }: SceneProps) {
   const stopX = PIVOT.x + (beamPx + 18) * Math.cos(stopAngle);
   const stopY = PIVOT.y + (beamPx + 18) * Math.sin(stopAngle);
   const forceArrowLen = clamp(m.F * 2.2, 24, 88);
+  const massCenterY = tipY + massR + 12;
+  const forceArrowX = tipX + massR + 22;
+  const forceArrowY = tipY - 16;
+  const forceLabelX = clamp(forceArrowX + 12, 84, SCENE_W - 76);
+  const forceLabelAnchor = forceLabelX > SCENE_W - 130 ? "end" : "start";
+  const attachedMassLabelY = Math.min(massCenterY + massR + 18, SCENE_H - 24);
 
   useEffect(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -130,7 +136,6 @@ export default function TorqueScene({ config, onOutcome }: SceneProps) {
           <rect x={WALL_X + WALL_W - 6} y={PIVOT.y - 44} width="12" height="88" rx="3" fill="#172033" />
 
           <line x1={PIVOT.x} y1={PIVOT.y} x2={stopX} y2={stopY} stroke="#f2c14e" strokeWidth="8" strokeLinecap="round" opacity="0.9" />
-          <text x={stopX - 44} y={stopY + 26} fill="#92400e" fontSize="12" fontWeight="800">lower stop</text>
 
           {angle > 0.04 ? (
             <path
@@ -145,19 +150,20 @@ export default function TorqueScene({ config, onOutcome }: SceneProps) {
           <line x1={PIVOT.x} y1={PIVOT.y} x2={tipX} y2={tipY} stroke="#216869" strokeWidth="16" strokeLinecap="round" />
           <line x1={PIVOT.x} y1={PIVOT.y} x2={tipX} y2={tipY} stroke="#2e8b88" strokeWidth="8" strokeLinecap="round" />
 
+          <circle cx={PIVOT.x} cy={PIVOT.y} r="23" fill="#eef5f1" stroke="#172033" strokeWidth="4" />
           <circle cx={PIVOT.x} cy={PIVOT.y} r="17" fill="#172033" />
           <circle cx={PIVOT.x} cy={PIVOT.y} r="7" fill="#f2c14e" />
           <text x={PIVOT.x - 38} y={PIVOT.y - 24} fill="#172033" fontSize="13" fontWeight="800">fixed pivot</text>
 
-          <circle cx={tipX} cy={tipY + massR + 12} r={massR} fill="#d7603d" stroke="#172033" strokeWidth="3" />
-          <line x1={tipX} y1={tipY} x2={tipX} y2={tipY + massR + 12} stroke="#172033" strokeWidth="3" />
-          <text x={tipX} y={tipY + massR + 17} textAnchor="middle" fill="white" fontSize="12" fontWeight="900">m</text>
-          <text x={tipX + massR + 8} y={tipY + massR + 17} fill="#172033" fontSize="12" fontWeight="800">attached mass</text>
+          <circle cx={tipX} cy={massCenterY} r={massR} fill="#d7603d" stroke="#172033" strokeWidth="3" />
+          <line x1={tipX} y1={tipY} x2={tipX} y2={massCenterY} stroke="#172033" strokeWidth="3" />
+          <text x={tipX} y={massCenterY + 5} textAnchor="middle" fill="white" fontSize="12" fontWeight="900">m</text>
+          <text x={tipX} y={attachedMassLabelY} textAnchor="middle" fill="#172033" fontSize="12" fontWeight="800">attached mass</text>
 
           <g color="#dc2626" stroke="currentColor" markerEnd="url(#tq-red)" strokeWidth="4" className="animate-pulse">
-            <line x1={tipX + 24} y1={tipY - 12} x2={tipX + 24} y2={tipY - 12 + forceArrowLen} />
+            <line x1={forceArrowX} y1={forceArrowY} x2={forceArrowX} y2={forceArrowY + forceArrowLen} />
           </g>
-          <text x={tipX + 34} y={tipY - 12 + forceArrowLen / 2} fill="#dc2626" fontSize="13" fontWeight="800">
+          <text x={forceLabelX} y={forceArrowY - 8} textAnchor={forceLabelAnchor} fill="#dc2626" fontSize="13" fontWeight="800">
             F = {fmt(m.F, 0)} N
           </text>
 

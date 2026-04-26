@@ -162,6 +162,16 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
   const systemTransform = `translate(${centerOffset.x.toFixed(2)} ${centerOffset.y.toFixed(2)})`;
   const blockTransform = `translate(${rawBlockCenter.x} ${rawBlockCenter.y}) rotate(${metrics.angle})`;
   const activeArrowClass = "animate-pulse drop-shadow-[0_0_8px_rgba(242,193,78,0.95)]";
+  const angleArcRadius = 76;
+  const angleArcStart = { x: rawBottom.x - angleArcRadius, y: rawBottom.y };
+  const angleArcEnd = {
+    x: rawBottom.x - angleArcRadius * Math.cos(metrics.theta),
+    y: rawBottom.y - angleArcRadius * Math.sin(metrics.theta),
+  };
+  const angleLabel = {
+    x: rawBottom.x - (angleArcRadius + 34) * Math.cos(metrics.theta / 2),
+    y: rawBottom.y - (angleArcRadius + 34) * Math.sin(metrics.theta / 2) + 6,
+  };
 
   const arrowStyle = (active: boolean) => ({ opacity: active ? 1 : running ? 0.22 : 0.42, strokeWidth: active ? 5 : 3.5 });
   const labelStyle = (active: boolean) => ({ opacity: active ? 1 : running ? 0.24 : 0.56, fontSize: active ? 17 : 15 });
@@ -296,8 +306,8 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
           <g transform={systemTransform}>
           <path d={`M ${rawTop.x} ${rawTop.y} L ${rawBottom.x} ${rawBottom.y} L ${rawTop.x} ${rawBottom.y} Z`} fill="#dfe8e4" stroke="#172033" strokeWidth="4" />
           <path d={`M ${rawTop.x} ${rawTop.y} L ${rawBottom.x} ${rawBottom.y}`} stroke="#172033" strokeWidth="8" strokeLinecap="round" />
-          <path d={`M ${rawBottom.x - 92} ${rawBottom.y} A 92 92 0 0 0 ${rawBottom.x - 92 * Math.cos(metrics.theta)} ${rawBottom.y - 92 * Math.sin(metrics.theta)}`} fill="none" stroke="#f2c14e" strokeWidth="5" />
-          <text x={rawBottom.x - 132} y={rawBottom.y + 34} fill="#172033" fontSize="18" fontWeight="700">θ = {fmt(metrics.angle, 1)}°</text>
+          <path d={`M ${angleArcStart.x} ${angleArcStart.y} A ${angleArcRadius} ${angleArcRadius} 0 0 1 ${angleArcEnd.x} ${angleArcEnd.y}`} fill="none" stroke="#f2c14e" strokeWidth="5" strokeLinecap="round" />
+          <text x={angleLabel.x} y={angleLabel.y} textAnchor="middle" fill="#172033" fontSize="17" fontWeight="700">θ = {fmt(metrics.angle, 1)}°</text>
 
           <g transform={blockTransform}>
             <rect x="-38" y="-24" width="76" height="48" rx="6" fill="#216869" />
@@ -1450,7 +1460,7 @@ function SpringMassScene({ config, onOutcome }: Props) {
   const SCALE = 120; // px per meter
   const massCX = eqX + disp * SCALE;
   const massLeft = massCX - massW / 2;
-  const springRight = massLeft + 2;
+  const springRight = massLeft;
   const springCoils = 8;
   const springPath = (() => {
     const x1 = wallX + 14; const x2 = springRight; const cy = massY + massH / 2;
@@ -1464,6 +1474,11 @@ function SpringMassScene({ config, onOutcome }: Props) {
   })();
   const forceDir = -disp; // F = -kx, negative disp means force is rightward
   const forceLen = clamp(Math.abs(disp) * SCALE * 0.7, 0, 90);
+  const forceSign = forceDir > 0 ? 1 : -1;
+  const forceY = massY - 26;
+  const forceStartX = massCX + forceSign * (massW / 2 + 8);
+  const forceEndX = forceStartX + forceSign * forceLen;
+  const forceLabelX = clamp((forceStartX + forceEndX) / 2, 72, WIDTH - 72);
 
   useEffect(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -1516,14 +1531,14 @@ function SpringMassScene({ config, onOutcome }: Props) {
           <text x={eqX + 6} y={massY - 24} fill="#94a3b8" fontSize="12" fontWeight="600">x=0</text>
           {/* Spring */}
           <path d={springPath} fill="none" stroke="#172033" strokeWidth="3" strokeLinecap="round" />
-          <line x1={springRight - 1} y1={massY + massH / 2} x2={massLeft + 5} y2={massY + massH / 2} stroke="#172033" strokeWidth="3" strokeLinecap="round" />
+          <line x1={springRight - 10} y1={massY + massH / 2} x2={massLeft + 5} y2={massY + massH / 2} stroke="#172033" strokeWidth="3" strokeLinecap="round" />
           {/* Force arrow (step 2+) */}
           {guidedStep >= 2 && forceLen > 4 && (
             <g color="#f2c14e" stroke="currentColor" markerEnd="url(#sm-arr)" strokeWidth="5" className="animate-pulse drop-shadow-[0_0_8px_rgba(242,193,78,0.8)]">
-              <line x1={massCX} y1={massY + massH / 2} x2={massCX + (forceDir > 0 ? forceLen : -forceLen)} y2={massY + massH / 2} />
+              <line x1={forceStartX} y1={forceY} x2={forceEndX} y2={forceY} />
             </g>
           )}
-          {guidedStep >= 2 && forceLen > 4 && <text x={massCX + (forceDir > 0 ? forceLen + 8 : -forceLen - 32)} y={massY + massH / 2 - 8} fill="#92400e" fontSize="13" fontWeight="700">F = {fmt(-metrics.k * disp, 1)} N</text>}
+          {guidedStep >= 2 && forceLen > 4 && <text x={forceLabelX} y={forceY - 12} textAnchor="middle" fill="#92400e" fontSize="13" fontWeight="700">F = {fmt(-metrics.k * disp, 1)} N</text>}
           {/* Mass block */}
           <rect x={massLeft} y={massY} width={massW} height={massH} rx="7" fill="#216869" stroke="#172033" strokeWidth="3" />
           <text x={massCX} y={massY + massH / 2 + 6} textAnchor="middle" fill="white" fontSize="15" fontWeight="800">m</text>

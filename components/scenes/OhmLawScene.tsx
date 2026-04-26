@@ -105,8 +105,9 @@ export default function OhmLawScene({ config, onOutcome }: SceneProps) {
   const lastFrameRef = useRef<number | null>(null);
   const speedRef = useRef(0);
 
-  const dotCount = Math.round(clamp(5 + m.current * 18, 6, 12));
-  const dotSpeed = clamp(m.current * 900, 55, 900);
+  const currentFlow = 1 - Math.exp(-m.current / 2.5);
+  const dotCount = Math.round(clamp(6 + currentFlow * 8, 6, 14));
+  const dotSpeed = 55 + currentFlow * 260;
   speedRef.current = dotSpeed;
   const current = m.current;
   const terminalVoltage = m.terminalVoltage;

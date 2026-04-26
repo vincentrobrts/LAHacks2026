@@ -69,8 +69,12 @@ export default function CircularMotionScene({ config, onOutcome }: SceneProps) {
   const vtx = -Math.sin(angle) * 50;
   const vty = Math.cos(angle) * 50;
   const fcLen = clamp(26 + Math.sqrt(Math.max(0, m.fc)) * 5, 32, 120);
-  const fcx = (CX - bx) / R_PX * fcLen;
-  const fcy = (CY - by) / R_PX * fcLen;
+  const fcUnitX = (CX - bx) / R_PX;
+  const fcUnitY = (CY - by) / R_PX;
+  const fcx = fcUnitX * fcLen;
+  const fcy = fcUnitY * fcLen;
+  const fcLabelX = clamp(bx + fcx * 0.45 - fcUnitY * 28, 62, SCENE_W - 62);
+  const fcLabelY = clamp(by + fcy * 0.45 + fcUnitX * 28, 34, SCENE_H - 28);
 
   useEffect(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -133,8 +137,8 @@ export default function CircularMotionScene({ config, onOutcome }: SceneProps) {
           <g color="#dc2626" stroke="currentColor" markerEnd="url(#cm-red)" strokeWidth="4" className={guidedStep >= 2 ? "animate-pulse" : "opacity-75"}>
             <line x1={bx} y1={by} x2={bx + fcx} y2={by + fcy} />
           </g>
-          <text x={bx + fcx * 0.6 + 6} y={by + fcy * 0.6 - 4} fill="#dc2626" fontSize="13" fontWeight="700">
-            {fCText} = {fmt(m.fc, 1)} N
+          <text x={fcLabelX} y={fcLabelY} textAnchor="middle" fill="#dc2626" stroke="#eef5f1" strokeWidth="4" paintOrder="stroke" fontSize="13" fontWeight="700">
+            <tspan>F</tspan><tspan dy="4" fontSize="10">c</tspan><tspan dy="-4"> = {fmt(m.fc, 1)} N</tspan>
           </text>
 
           <circle cx={bx} cy={by} r={16} fill="#216869" stroke="#172033" strokeWidth="3" />

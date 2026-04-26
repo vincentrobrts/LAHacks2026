@@ -221,8 +221,12 @@ function massValueCount(text: string) {
   return countMatches(text, /\b\d+(?:\.\d+)?\s*kg\b|\bmass\s*(?:of|=|is)?\s*\d+(?:\.\d+)?/g);
 }
 
+function normalizeChargeSigns(text: string) {
+  return text.replace(/[\u2212\u2013\u2014]/g, "-");
+}
+
 function chargeValueCount(text: string) {
-  return countMatches(text, /[+-]?\d+(?:\.\d+)?\s*(?:μ|u|micro)?c\b|\bq\d?\s*(?:=|is|:)?\s*[+-]?\d+(?:\.\d+)?/g);
+  return countMatches(normalizeChargeSigns(text), /[+-]?\d+(?:\.\d+)?\s*(?:\u03bc|µ|u|mu|micro)?\s*c\b|\bq\d?\s*(?:=|is|:)?\s*[+-]?\d+(?:\.\d+)?/gi);
 }
 
 function hasSpeedValue(text: string) {
@@ -281,15 +285,15 @@ function validateSimulationConfig(config: SimulationConfig, prompt: string) {
   };
 
   if (!hasNumber(config.world?.gravity) && GRAVITY_SCENARIOS.has(config.type)) {
-    assumptions.push("Assumed g = 9.8 m/s²");
+    assumptions.push("Using standard value: g = 9.8 m/s^2");
   }
 
   switch (config.type) {
     case "inclined_plane":
       requireParam("angle", "angle θ");
-      defaultParam("mass", 1, "Assumed mass m = 1 kg");
-      defaultParam("distance", 3, "Assumed distance d = 3 m for animation");
-      if (!hasNumber(next.params.friction)) defaultParam("friction", 0, "Assumed friction μ = 0");
+      defaultParam("mass", 1, "Using standard value: mass m = 1 kg");
+      defaultParam("distance", 3, "Using standard value: distance d = 3 m for animation");
+      if (!hasNumber(next.params.friction)) defaultParam("friction", 0, "Using standard value: friction mu = 0");
       if (/\bfrictionless\b/.test(lower)) {
         next.params.friction = 0;
         next.world.friction = 0;
@@ -298,8 +302,8 @@ function validateSimulationConfig(config: SimulationConfig, prompt: string) {
     case "atwood_table":
       requireParam("mass1", "m₁");
       requireParam("mass2", "m₂");
-      defaultParam("distance", 3, "Assumed distance d = 3 m for animation");
-      if (!hasNumber(next.params.friction)) defaultParam("friction", 0, "Assumed friction μ = 0");
+      defaultParam("distance", 3, "Using standard value: distance d = 3 m for animation");
+      if (!hasNumber(next.params.friction)) defaultParam("friction", 0, "Using standard value: friction mu = 0");
       if (/\bfrictionless\b/.test(lower)) {
         next.params.friction = 0;
         next.world.friction = 0;
@@ -308,7 +312,7 @@ function validateSimulationConfig(config: SimulationConfig, prompt: string) {
     case "electric_field": {
       const charges = ["charge1", "charge2", "charge3", "charge4"].filter((key) => hasNumber(next.params[key]));
       if (charges.length < 2) missing.push("at least two charges");
-      defaultParam("separation", 1, "Assumed charge separation r = 1 m");
+      defaultParam("separation", 1, "Using standard value: charge separation r = 1 m");
       break;
     }
     case "collision_1d":
@@ -316,39 +320,39 @@ function validateSimulationConfig(config: SimulationConfig, prompt: string) {
       requireParam("mass2", "m₂");
       requireParam("v1", "v₁");
       requireParam("v2", "v₂");
-      if (!hasNumber(next.params.restitution)) defaultParam("restitution", /\belastic\w*\b/.test(lower) && !/\binelastic\w*\b/.test(lower) ? 1 : 0, /\belastic\w*\b/.test(lower) && !/\binelastic\w*\b/.test(lower) ? "Assumed restitution e = 1 for elastic collision" : "Assumed restitution e = 0");
+      if (!hasNumber(next.params.restitution)) defaultParam("restitution", /\belastic\w*\b/.test(lower) && !/\binelastic\w*\b/.test(lower) ? 1 : 0, /\belastic\w*\b/.test(lower) && !/\binelastic\w*\b/.test(lower) ? "Using standard value: restitution e = 1 for elastic collision" : "Using standard value: restitution e = 0");
       break;
     case "free_fall":
       requireParam("height", "height h");
-      defaultParam("mass", 1, "Assumed mass m = 1 kg");
-      defaultParam("air_resistance", 0, "Assumed air resistance = 0");
+      defaultParam("mass", 1, "Using standard value: mass m = 1 kg");
+      defaultParam("air_resistance", 0, "Using standard value: air resistance = 0");
       break;
     case "pendulum":
       requireParam("length", "length L");
       requireParam("initial_angle", "initial angle θ₀");
-      defaultParam("mass", 1, "Assumed mass m = 1 kg");
+      defaultParam("mass", 1, "Using standard value: mass m = 1 kg");
       break;
     case "projectile_motion":
       requireParam("angle", "launch angle θ");
       requireParam("speed", "speed v₀");
-      defaultParam("mass", 1, "Assumed mass m = 1 kg");
-      defaultParam("initial_height", 0, "Assumed initial height h₀ = 0");
+      defaultParam("mass", 1, "Using standard value: mass m = 1 kg");
+      defaultParam("initial_height", 0, "Using standard value: initial height h0 = 0");
       break;
     case "circular_motion":
       requireParam("radius", "radius r");
       requireParam("speed", "speed v");
-      defaultParam("mass", 1, "Assumed mass m = 1 kg");
+      defaultParam("mass", 1, "Using standard value: mass m = 1 kg");
       break;
     case "spring_mass":
       requireParam("spring_constant", "spring constant k");
       requireParam("mass", "mass m");
-      defaultParam("amplitude", 0.5, "Assumed amplitude A = 0.5 m for visualization");
+      defaultParam("amplitude", 0.5, "Using standard value: amplitude A = 0.5 m for visualization");
       break;
     case "ohm_law":
       if (!hasNumber(next.params.voltage) && hasNumber(next.params.emf)) next.params.voltage = next.params.emf;
       requireParam("voltage", "voltage ε");
       requireParam("resistance", "external resistance R");
-      defaultParam("internal_resistance", 0, "Assumed internal resistance r = 0 Ω");
+      defaultParam("internal_resistance", 0, "Using standard value: internal resistance r = 0 ohm");
       break;
     default:
       Object.entries(next.params).forEach(([key, value]) => {
@@ -398,14 +402,14 @@ function normalizeCollisionConfig(config: SimulationConfig, prompt: string): Sim
 
 function electricPromptValues(prompt: string) {
   const values: number[] = [];
-  const normalized = prompt.replace(/−/g, "-");
-  const labeled = /(?:charge|q)\s*\d*\s*:?\s*([+-]?\d+(?:\.\d+)?)\s*(?:μ|u|micro)?c/gi;
+  const normalized = normalizeChargeSigns(prompt);
+  const labeled = /(?:charge|q)\s*\d*\s*:?\s*([+-]?\d+(?:\.\d+)?)\s*(?:\u03bc|µ|u|mu|micro)?\s*c\b/gi;
   let match: RegExpExecArray | null;
   while ((match = labeled.exec(normalized)) && values.length < 4) {
     values.push(clamp(Number(match[1]), -10, 10));
   }
 
-  const standalone = /([+-]?\d+(?:\.\d+)?)\s*(?:μ|u|micro)c/gi;
+  const standalone = /([+-]?\d+(?:\.\d+)?)\s*(?:\u03bc|µ|u|mu|micro)\s*c\b/gi;
   while ((match = standalone.exec(normalized)) && values.length < 4) {
     const value = clamp(Number(match[1]), -10, 10);
     if (!values.some((existing) => Math.abs(existing - value) < 0.001)) values.push(value);
@@ -417,13 +421,13 @@ function electricPromptValues(prompt: string) {
 }
 
 function electricPromptSeparation(prompt: string, fallback: number) {
-  const normalized = prompt.replace(/−/g, "-");
+  const normalized = normalizeChargeSigns(prompt);
   const match = normalized.match(/(\d+(?:\.\d+)?)\s*(?:m|meter|meters)\s*(?:apart|separated|between)?/i);
   return match ? clamp(Number(match[1]), 0.1, 5) : fallback;
 }
 
 function normalizeElectricFieldConfig(config: SimulationConfig, prompt: string): SimulationConfig {
-  const lower = prompt.toLowerCase();
+  const lower = normalizeChargeSigns(prompt).toLowerCase();
   const electricLike = /\b(charge|charges|electron|electrons|coulomb|electric)\b/.test(lower);
   if (config.type !== "electric_field" && !electricLike) return config;
 
@@ -683,7 +687,7 @@ function resolveMissingFields(simulationType: SimulationType | null, parsedOutpu
       requireParam("resistance", "resistance");
       break;
     case "spring_mass":
-      requirePrompt(hasAny(lower, [/\bspring\s+constant\b/, /\bk\s*=/]), "spring constant");
+      requirePrompt(hasAny(lower, [/\bspring\s+constant\b/, /\bk\s*(?:=|is|of|:)\s*\d+(?:\.\d+)?/, /\b\d+(?:\.\d+)?\s*n\/m\b/]), "spring constant");
       requirePrompt(massValueCount(lower) >= 1, "mass");
       requireParam("spring_constant", "spring constant");
       requireParam("mass", "mass");
@@ -945,7 +949,7 @@ export default function SimulationClient() {
       if (prompt === ATWOOD_PROMPT) {
         setConfig(ATWOOD_EXAMPLE);
         setOutcome(null);
-        setParseMessage("Opened Atwood Machine with default values. Add masses/distance for a custom setup.");
+        setParseMessage("");
         saveHistory(prompt, ATWOOD_EXAMPLE);
         setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
         updateShareUrl(ATWOOD_EXAMPLE);
@@ -963,7 +967,7 @@ export default function SimulationClient() {
           const nextConfig = validatedNext.config;
           setConfig(nextConfig);
           setOutcome(null);
-          setParseMessage(validatedNext.assumptions.length > 0 ? validatedNext.assumptions.join(" ") : confidence.missingFields.length > 0 ? `Opened ${SCENARIO_LABELS[nextConfig.type] ?? nextConfig.type} with default values. Add ${confidence.missingFields.join(", ")} for a custom setup.` : "");
+          setParseMessage(validatedNext.assumptions.join(" "));
           saveHistory(prompt, nextConfig);
           setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
           updateShareUrl(nextConfig);
@@ -985,7 +989,7 @@ export default function SimulationClient() {
       const nextConfig = validatedNext.config;
       setConfig(nextConfig);
       setOutcome(null);
-      setParseMessage(validatedNext.assumptions.length > 0 ? validatedNext.assumptions.join(" ") : confidence.missingFields.length > 0 ? `Opened ${SCENARIO_LABELS[nextConfig.type] ?? nextConfig.type} with default values. Add ${confidence.missingFields.join(", ")} for a custom setup.` : "");
+      setParseMessage(validatedNext.assumptions.join(" "));
       saveHistory(prompt, nextConfig);
       setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
       updateShareUrl(nextConfig);
