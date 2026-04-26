@@ -21,12 +21,24 @@ export type ParsedCompound = {
   connections: ParsedConnection[];
 };
 
+export type SceneParams = {
+  m1: number;
+  m2: number;
+  angle1?: number;
+  angle2?: number;
+  mu1?: number;
+  mu2?: number;
+  springK?: number;
+  springRestLength?: number;
+};
+
 export type BuiltScene = {
   scene: CompoundScene;
   world: PhysicsWorld | null;
   circuitSolution: ReturnType<typeof solveCircuit> | null;
   sceneType: "atwood" | "rampAtwood" | "springAtwood" | "doubleRamp" | "circuit" | "generic";
   atwoodParams?: { m1: number; m2: number };
+  sceneParams?: SceneParams;
 };
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
@@ -100,7 +112,7 @@ function buildRampAtwood(
     world,
   };
 
-  return { scene, world, circuitSolution: null, sceneType: "rampAtwood" };
+  return { scene, world, circuitSolution: null, sceneType: "rampAtwood", sceneParams: { m1, m2, angle1: rampAngleDeg, mu1: mu } };
 }
 
 // ─── 2. Standard Atwood ───────────────────────────────────────────────────────
@@ -147,7 +159,7 @@ function buildStandardAtwood(
     world,
   };
 
-  return { scene, world, circuitSolution: null, sceneType: "atwood", atwoodParams: { m1, m2 } };
+  return { scene, world, circuitSolution: null, sceneType: "atwood", atwoodParams: { m1, m2 }, sceneParams: { m1, m2 } };
 }
 
 // ─── 3. Spring-Atwood ─────────────────────────────────────────────────────────
@@ -213,7 +225,7 @@ function buildSpringAtwood(
     world,
   };
 
-  return { scene, world, circuitSolution: null, sceneType: "springAtwood" };
+  return { scene, world, circuitSolution: null, sceneType: "springAtwood", sceneParams: { m1: mRail, m2: mHang, springK: k_nm, springRestLength: restM } };
 }
 
 // ─── 4. Double Ramp ───────────────────────────────────────────────────────────
@@ -273,7 +285,7 @@ function buildDoubleRamp(
     world,
   };
 
-  return { scene, world, circuitSolution: null, sceneType: "doubleRamp" };
+  return { scene, world, circuitSolution: null, sceneType: "doubleRamp", sceneParams: { m1, m2, angle1: angle1Deg, angle2: angle2Deg, mu1, mu2 } };
 }
 
 // ─── 5. Series Circuit ────────────────────────────────────────────────────────

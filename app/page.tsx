@@ -25,7 +25,10 @@ function clamp(value: number, min: number, max: number) {
 
 function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): SimulationConfig {
   const lower = prompt.toLowerCase();
-  const atwoodLike = /\b(pulley|hanging|connected|table)\b/.test(lower) && /\bkg|mass|block\b/.test(lower);
+  // Only apply to table-style Atwood (one mass on surface + one hanging), not standard Atwood (two hanging)
+  const hasTableSurface = /\b(table|surface|ground|rests?\s+on|sits?\s+on|horizontal)\b/.test(lower);
+  const hasHanging = /\b(hanging|connected.*pulley|pulley.*connected|falls?)\b/.test(lower);
+  const atwoodLike = (hasTableSurface || hasHanging) && /\bkg|mass|block\b/.test(lower);
   if (config.type !== "atwood_table" && !atwoodLike) return config;
 
   const number = "([0-9]+(?:\\.[0-9]+)?)";
@@ -35,6 +38,8 @@ function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): Simula
   const frictionless = /\bfrictionless\b/.test(lower);
   const frictionMatch = lower.match(/(?:friction|mu|μ)\s*(?:=|is)?\s*([0-9]+(?:\.[0-9]+)?)/);
 
+  const existingDistance = typeof config.params.distance === "number" && config.params.distance > 0 ? config.params.distance : 3;
+
   return {
     ...config,
     type: "atwood_table",
@@ -42,7 +47,7 @@ function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): Simula
       ...config.params,
       ...(blockMatch ? { mass1: clamp(Number(blockMatch[1]), 0.5, 10) } : {}),
       ...(hangingMatch ? { mass2: clamp(Number(hangingMatch[1]), 0.5, 10) } : {}),
-      ...(distanceMatch ? { distance: clamp(Number(distanceMatch[1]), 1, 5) } : {}),
+      distance: distanceMatch ? clamp(Number(distanceMatch[1]), 1, 5) : existingDistance,
       ...(frictionless ? { friction: 0 } : frictionMatch ? { friction: clamp(Number(frictionMatch[1]), 0, 0.9) } : {}),
     },
     world: { ...config.world, friction: frictionless ? 0 : config.world?.friction ?? 0 },
@@ -61,11 +66,15 @@ export default function Home() {
 
   const isCompoundPrompt = (text: string) => {
     const t = text.toLowerCase();
-    const multiResistor = (t.match(/\br\d+\b/g) ?? []).length >= 2 || t.includes(" series");
-    const compoundPulley = t.includes("pulley") && (t.includes("ramp") || t.includes("spring"));
+    const namedResistors = (t.match(/\br\d+\b/g) ?? []).length >= 2;
+    const ohmCount = (t.match(/\d+(?:\.\d+)?\s*(?:ohm|Ω|ω)/gi) ?? []).length;
+    const multiResistor = namedResistors || (ohmCount >= 2 && t.includes("series"));
+    const hasRampLike = t.includes("ramp") || t.includes("incline") || t.includes("slope");
+    const compoundPulley = t.includes("pulley") && (hasRampLike || t.includes("spring"));
     return (
       compoundPulley ||
-      (t.includes("ramp") && t.includes("connected")) ||
+      (hasRampLike && t.includes("connected")) ||
+      (t.includes("pulley") && /\b\d+(?:\.\d+)?\s*kg\b.*\b\d+(?:\.\d+)?\s*kg\b/.test(t)) ||
       multiResistor ||
       (t.includes("spring") && t.includes("pulley"))
     );
