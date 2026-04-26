@@ -757,6 +757,7 @@ function confidenceForType(type: SimulationType, config: SimulationConfig | null
     bernoulli: hasAny(lower, [/\bfluid\b/, /\bflow\b/, /\bpressure\b/, /\bvelocity\b/, /\bpipe\b/, /\bbernoulli\b/]) && hasSpeedValue(lower) && hasAny(lower, [/\bpressure\b/, /\bheight\b/]),
     standing_waves: hasAny(lower, [/\bwave\b/, /\bharmonic\b/, /\bstring\b/, /\bfrequency\b/, /\bwavelength\b/]) && hasAny(lower, [/\blength\b/, /\b\d+(?:\.\d+)?\s*m\b/, /\bfrequency\b/, /\btension\b/]),
     bohr_model: hasAny(lower, [/\batom\b/, /\belectron\b/, /\bshell\b/, /\borbit\b/, /\bbohr\b/, /\bhydrogen\b/, /\belement\b/, /\batomic number\b/]),
+    pulley: hasAny(lower, [/\bpulley\b/, /\batwood\b/]) && massValueCount(lower) >= 2,
   };
   addMissing(keywordChecks[type], "matching physics context");
   const fieldMissing = resolveMissingFields(type, config, rawPrompt);
