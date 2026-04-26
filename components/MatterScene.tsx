@@ -131,7 +131,6 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
     x: rawTop.x + downRamp.x * blockTravel + normalDir.x * 22,
     y: rawTop.y + downRamp.y * blockTravel + normalDir.y * 22,
   };
-  };
   const maxInclinedForce = Math.max(metrics.mass * metrics.gravity, metrics.normal, metrics.frictionForce, metrics.gravityComponent);
   const gravityLen = forceArrowLength(metrics.mass * metrics.gravity, maxInclinedForce);
   const normalLen = forceArrowLength(metrics.normal, maxInclinedForce);
