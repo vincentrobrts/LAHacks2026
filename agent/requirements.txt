@@ -1,5 +1,0 @@
-uagents==0.24.2
-groq
-python-dotenv
-mcp
-pillow

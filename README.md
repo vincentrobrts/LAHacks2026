@@ -1,38 +1,117 @@
 # Intuify
 
-Turn physics word problems into interactive simulations.
+**Turn physics word problems into interactive simulations — instantly.**
 
-Intuify takes plain English physics problems and instantly turns them into visual, interactive models. Instead of solving equations in isolation, you can see how the system behaves, adjust variables in real time, and understand the reasoning step by step.
+Intuify takes a plain English physics problem and generates a live, interactive visualization. Instead of solving equations in isolation, you can see the system behave, adjust parameters in real time, and follow a step-by-step guided breakdown that connects the math to the motion.
 
-## How It Works
+Built at LA Hacks 2026.
 
-1. Enter a physics word problem  
-2. The system extracts key variables  
-3. A live simulation is generated  
-4. Adjust parameters and watch the physics update  
-5. Follow the guided breakdown to understand why it works  
+---
 
-## Why It Matters
+## Demo
 
-Physics is difficult because it’s abstract.
+Paste any physics word problem on the home page or compound lab:
 
-Students are expected to imagine motion, forces, and interactions from text alone. Intuify bridges that gap by turning those problems into something you can actually see and interact with.
+> *"A 5 kg block slides down a 30° ramp with μₖ = 0.2 for 3 meters."*  
+> *"A 3 kg mass on a 30° ramp connected by rope over a pulley to a 2 kg hanging mass."*  
+> *"A 9V battery in series with a 10 Ω and 20 Ω resistor."*
 
-## Key Features
+---
 
-- Natural language → simulation
-- Real-time interactive controls
-- Live-updating results
-- Step-by-step guided explanations
-- Visual connection between equations and motion
+## Features
 
-## Architecture
+**Atomic simulations** (14 scene types, fully analytical):
 
-User Prompt → AI Parsing → Structured Config → Simulation Engine → Visualization + Explanation
+| Scene | Physics |
+|---|---|
+| Inclined Plane | N, friction, net force, kinematics |
+| Atwood Machine | Pulley inertia, acceleration |
+| Atwood Table | Table + hanging mass system |
+| Projectile Motion | 2D kinematics |
+| Free Fall | Gravity + air resistance |
+| Pendulum | SHM, period |
+| Spring-Mass | SHM, energy |
+| Circular Motion | Centripetal force |
+| Torque | Moment of inertia, angular acceleration |
+| Ohm's Law | Current, voltage drop, power |
+| Electric Field | Coulomb force |
+| Bernoulli | Fluid continuity, pressure |
+| Standing Waves | Harmonics, nodes |
+| Bohr Model | Electron transitions, photon emission |
 
-## Built For
+**Compound Lab** (multi-body systems):
 
-LA Hacks 2026
+- Ramp-Atwood machine (block on ramp + hanging mass)
+- Double ramp Atwood (two blocks on opposing ramps)
+- Spring-Atwood machine (spring + pulley + hanging mass)
+- Standard Atwood machine
+- Series circuits (battery + resistors + capacitors)
+
+All compound scenes use closed-form analytical kinematics — no unstable physics solver.
+
+---
+
+## Stack
+
+- **Framework:** Next.js 14 App Router, TypeScript, Tailwind CSS
+- **AI parsing:** Groq API (`llama-3.1-8b-instant`) via `POST /api/parse` and `POST /api/parse-compound`
+- **Rendering:** SVG + `requestAnimationFrame` analytical animation (no physics engine dependency)
+- **State:** URL-encoded simulation state (`/sim?state=...`) for shareable links; `localStorage` for history
+
+---
+
+## Getting Started
+
+```bash
+npm install
+```
+
+Create a `.env.local` file:
+
+```
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+Then run:
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+---
+
+## Project Structure
+
+```
+app/
+  page.tsx              # Home — prompt input + history
+  sim/page.tsx          # Atomic simulation viewer
+  compound/page.tsx     # Compound physics lab
+  api/
+    parse/              # Atomic: Groq → SimulationConfig
+    parse-compound/     # Compound: Groq → ParsedCompound
+
+components/
+  SimulationClient.tsx  # Atomic scene dispatcher
+  MatterScene.tsx       # Inclined plane + Atwood table scenes
+  scenes/               # One file per scene type
+
+lib/
+  agentverse.ts         # Atomic parse call
+  physics/
+    builder.ts          # ParsedCompound → BuiltScene
+    presets.ts          # Circuit solver
+    types.ts            # Compound type definitions
+  share.ts              # URL encode/decode simulation state
+  defaults.ts           # Default configs and prompts
+
+types/
+  simulation.ts         # SimulationConfig, SimulationType, etc.
+```
+
+---
 
 ## Team
 
