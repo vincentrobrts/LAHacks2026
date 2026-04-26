@@ -242,6 +242,32 @@ function normalizeElectricFieldConfig(config: SimulationConfig, prompt: string):
   };
 }
 
+function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  const lower = prompt.toLowerCase();
+  const atwoodLike = /\b(pulley|hanging|connected|table)\b/.test(lower) && /\bkg|mass|block\b/.test(lower);
+  if (config.type !== "atwood_table" && !atwoodLike) return config;
+
+  const number = "([0-9]+(?:\\.[0-9]+)?)";
+  const blockMatch = lower.match(new RegExp(`${number}\\s*kg\\s+(?:block|cart|object|mass)`));
+  const hangingMatch = lower.match(new RegExp(`hanging\\s+${number}\\s*kg`)) ?? lower.match(new RegExp(`${number}\\s*kg\\s+hanging`));
+  const distanceMatch = lower.match(/falls?\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/) ?? lower.match(/for\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/);
+  const frictionless = /\bfrictionless\b/.test(lower);
+  const frictionMatch = lower.match(/(?:friction|mu|μ)\s*(?:=|is)?\s*([0-9]+(?:\.[0-9]+)?)/);
+
+  return {
+    ...config,
+    type: "atwood_table",
+    params: {
+      ...config.params,
+      ...(blockMatch ? { mass1: clamp(Number(blockMatch[1]), 0.5, 10) } : {}),
+      ...(hangingMatch ? { mass2: clamp(Number(hangingMatch[1]), 0.5, 10) } : {}),
+      ...(distanceMatch ? { distance: clamp(Number(distanceMatch[1]), 1, 5) } : {}),
+      ...(frictionless ? { friction: 0 } : frictionMatch ? { friction: clamp(Number(frictionMatch[1]), 0, 0.9) } : {}),
+    },
+    world: { ...config.world, friction: frictionless ? 0 : config.world.friction ?? 0 },
+  };
+}
+
 function displayExplanation(config: SimulationConfig, outcome: LaunchOutcome | null, fallback: string) {
   if (config.type === "atwood_table") {
     const m1 = config.params.mass1;
@@ -345,7 +371,7 @@ export default function SimulationClient() {
         return;
       }
 
-      const nextConfig = normalizeElectricFieldConfig(normalizeCollisionConfig(parsed, prompt), prompt);
+      const nextConfig = normalizeElectricFieldConfig(normalizeAtwoodConfig(normalizeCollisionConfig(parsed, prompt), prompt), prompt);
       setConfig(nextConfig);
       setOutcome(null);
       saveHistory(prompt, nextConfig);

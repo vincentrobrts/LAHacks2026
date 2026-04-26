@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { parseWithAgentverse } from "@/lib/agentverse";
 import { DEFAULT_CONFIGS, DEFAULT_PROMPT, DEMO_SHOT } from "@/lib/defaults";
 import { encodeSimulation } from "@/lib/share";
-import type { SimulationHistoryItem } from "@/types/simulation";
+import type { SimulationConfig, SimulationHistoryItem } from "@/types/simulation";
 
 const HISTORY_KEY = "physics-visualizer-history";
 
@@ -17,6 +17,36 @@ const EXAMPLE_PROMPTS = [
 ];
 
 const ATWOOD_PROMPT = EXAMPLE_PROMPTS[1];
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  const lower = prompt.toLowerCase();
+  const atwoodLike = /\b(pulley|hanging|connected|table)\b/.test(lower) && /\bkg|mass|block\b/.test(lower);
+  if (config.type !== "atwood_table" && !atwoodLike) return config;
+
+  const number = "([0-9]+(?:\\.[0-9]+)?)";
+  const blockMatch = lower.match(new RegExp(`${number}\\s*kg\\s+(?:block|cart|object|mass)`));
+  const hangingMatch = lower.match(new RegExp(`hanging\\s+${number}\\s*kg`)) ?? lower.match(new RegExp(`${number}\\s*kg\\s+hanging`));
+  const distanceMatch = lower.match(/falls?\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/) ?? lower.match(/for\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/);
+  const frictionless = /\bfrictionless\b/.test(lower);
+  const frictionMatch = lower.match(/(?:friction|mu|μ)\s*(?:=|is)?\s*([0-9]+(?:\.[0-9]+)?)/);
+
+  return {
+    ...config,
+    type: "atwood_table",
+    params: {
+      ...config.params,
+      ...(blockMatch ? { mass1: clamp(Number(blockMatch[1]), 0.5, 10) } : {}),
+      ...(hangingMatch ? { mass2: clamp(Number(hangingMatch[1]), 0.5, 10) } : {}),
+      ...(distanceMatch ? { distance: clamp(Number(distanceMatch[1]), 1, 5) } : {}),
+      ...(frictionless ? { friction: 0 } : frictionMatch ? { friction: clamp(Number(frictionMatch[1]), 0, 0.9) } : {}),
+    },
+    world: { ...config.world, friction: frictionless ? 0 : config.world.friction ?? 0 },
+  };
+}
 
 export default function Home() {
   const router = useRouter();
@@ -30,7 +60,8 @@ export default function Home() {
 
   const start = async (perfect = false) => {
     setMessage("");
-    const config = perfect ? DEMO_SHOT : prompt === ATWOOD_PROMPT ? DEFAULT_CONFIGS.atwood_table : await parseWithAgentverse(prompt);
+    const parsed = perfect ? DEMO_SHOT : prompt === ATWOOD_PROMPT ? DEFAULT_CONFIGS.atwood_table : await parseWithAgentverse(prompt);
+    const config = perfect || prompt === ATWOOD_PROMPT ? parsed : normalizeAtwoodConfig(parsed, prompt);
     const nextPrompt = perfect ? DEFAULT_PROMPT : prompt;
     const item: SimulationHistoryItem = {
       id: crypto.randomUUID(),
