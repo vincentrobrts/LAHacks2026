@@ -8,117 +8,166 @@ import {
 } from "./_shared";
 
 function metrics(config: SimulationConfig) {
-  const V = clamp(config.params.voltage ?? 12, 1, 24);
-  const R = clamp(config.params.resistance ?? 40, 1, 100);
-  const r = clamp(config.params.internal_resistance ?? 2, 0, 10);
-  const I = V / (R + r);
-  const Vt = V - I * r;
-  const P_ext = I * I * R;
-  const P_int = I * I * r;
-  return { V, R, r, I, Vt, P_ext, P_int };
+  const emf = clamp(config.params.voltage ?? 12, 1, 24);
+  const resistance = clamp(config.params.resistance ?? 40, 1, 100);
+  const internalResistance = clamp(config.params.internal_resistance ?? 2, 0, 10);
+  const current = emf / (resistance + internalResistance);
+  const terminalVoltage = current * resistance;
+  const externalPower = current * current * resistance;
+  const internalPower = current * current * internalResistance;
+  return { emf, resistance, internalResistance, current, terminalVoltage, externalPower, internalPower };
 }
+
+const EPSILON = "\u03b5";
+const OMEGA = "\u03a9";
+const V_T = "V\u209c";
+const P_EXT = "P\u2091\u2093\u209c";
+const P_INT = "P\u1d62\u2099\u209c";
 
 const STEPS = [
   {
-    title: "Voltage Source",
-    equation: "EMF = V",
-    notice: "The battery provides electromotive force (EMF). Internal resistance reduces the terminal voltage available to the circuit.",
-    diagram: "The battery symbol is on the left. The longer line is the positive terminal.",
+    title: "Battery / EMF",
+    equation: `${EPSILON} = source voltage`,
+    notice: "The battery provides electromotive force, the source voltage that drives charge around the circuit.",
+    diagram: "The battery on the left is highlighted as the energy source.",
   },
   {
-    title: "Ohm's Law",
-    equation: "I = V / (R + r)",
-    notice: "Current is determined by total resistance — external R plus internal r. More resistance, less current.",
-    diagram: "Current flows clockwise from positive terminal through the resistor and back.",
+    title: "Total Resistance",
+    equation: `R_total = R + r`,
+    notice: "External resistance R and internal resistance r both limit current.",
+    diagram: "The load resistor and the small internal-loss element are highlighted together.",
   },
   {
-    title: "Terminal Voltage",
-    equation: "V_t = V − Ir",
-    notice: "Internal resistance causes a voltage drop inside the battery, so the terminal voltage is less than the EMF.",
-    diagram: "The difference between EMF and terminal voltage is the internal voltage drop I·r.",
+    title: "Current",
+    equation: `I = ${EPSILON} / (R + r)`,
+    notice: "Higher source voltage drives more current; higher total resistance reduces current.",
+    diagram: "The moving dots show conventional current around the wire path.",
   },
   {
-    title: "Power Dissipation",
-    equation: "P = I²R",
-    notice: "Power dissipated in each resistor depends on current squared times resistance — higher current wastes much more energy.",
-    diagram: "The external resistor dissipates P_ext, and the internal resistance wastes P_int as heat inside the battery.",
+    title: "Terminal Voltage and Power",
+    equation: `${V_T} = IR,  ${P_EXT} = I\u00b2R`,
+    notice: "Terminal voltage is what reaches the external load. Internal resistance turns some power into heat inside the source.",
+    diagram: "The external resistor is highlighted as the useful load, while internal loss is shown near the battery when r is nonzero.",
   },
 ];
 
-// Circuit layout coordinates
 const RECT = { x: 140, y: 150, w: 480, h: 220 };
 const BAT_X = RECT.x;
 const BAT_MID_Y = RECT.y + RECT.h / 2;
 const RES_X = RECT.x + RECT.w;
 const RES_MID_Y = BAT_MID_Y;
+const PERIMETER = 2 * (RECT.w + RECT.h);
 
-function Dot({ x, y }: { x: number; y: number }) {
-  return <circle cx={x} cy={y} r={5} fill="#f2c14e" />;
+function zigzagPoints(x: number, y: number, height = 72, width = 14) {
+  const top = y - height / 2;
+  return [
+    `${x},${top}`,
+    `${x - width},${top + 12}`,
+    `${x + width},${top + 24}`,
+    `${x - width},${top + 36}`,
+    `${x + width},${top + 48}`,
+    `${x},${top + height}`,
+  ].join(" ");
+}
+
+function dotCoords(pos: number): { x: number; y: number; nearResistor: boolean } {
+  const p = ((pos % PERIMETER) + PERIMETER) % PERIMETER;
+  if (p < RECT.w) return { x: RECT.x + p, y: RECT.y, nearResistor: p > RECT.w - 70 };
+  if (p < RECT.w + RECT.h) {
+    const y = RECT.y + (p - RECT.w);
+    return { x: RECT.x + RECT.w, y, nearResistor: Math.abs(y - RES_MID_Y) < 62 };
+  }
+  if (p < RECT.w * 2 + RECT.h) return { x: RECT.x + RECT.w - (p - RECT.w - RECT.h), y: RECT.y + RECT.h, nearResistor: p < RECT.w + RECT.h + 70 };
+  return { x: RECT.x, y: RECT.y + RECT.h - (p - RECT.w * 2 - RECT.h), nearResistor: false };
+}
+
+function ChargeDot({ x, y, nearResistor, index }: { x: number; y: number; nearResistor: boolean; index: number }) {
+  const offset = nearResistor ? ((index % 3) - 1) * 5 : 0;
+  return (
+    <circle
+      cx={x + (nearResistor ? offset : 0)}
+      cy={y + (nearResistor ? -offset : 0)}
+      r={nearResistor ? 4.3 : 5}
+      fill={nearResistor ? "#f59e0b" : "#f2c14e"}
+      stroke="#92400e"
+      strokeWidth="1"
+      opacity={nearResistor ? 0.95 : 0.85}
+    />
+  );
 }
 
 export default function OhmLawScene({ config, onOutcome }: SceneProps) {
   const m = useMemo(() => metrics(config), [config]);
   const [guidedStep, setGuidedStep] = useState(1);
   const [running, setRunning] = useState(false);
-  const [dotPos, setDotPos] = useState(0); // 0..1 around the circuit
+  const [dotPos, setDotPos] = useState(0);
   const frameRef = useRef<number | null>(null);
-  const startRef = useRef<number | null>(null);
+  const lastFrameRef = useRef<number | null>(null);
+  const speedRef = useRef(0);
 
-  // Circuit perimeter (approximate) for dot animation
-  const perim = 2 * (RECT.w + RECT.h);
-  const dotSpeed = clamp(m.I * 600, 80, 800); // px per second
+  const dotCount = Math.round(clamp(5 + m.current * 18, 6, 12));
+  const dotSpeed = clamp(m.current * 900, 55, 900);
+  speedRef.current = dotSpeed;
+  const current = m.current;
+  const terminalVoltage = m.terminalVoltage;
+  const externalPower = m.externalPower;
+  const internalPower = m.internalPower;
 
   useEffect(() => {
-    if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    setRunning(false);
-    setDotPos(0);
-    startRef.current = null;
-    onOutcome({ launched: false, success: false, metrics: {} });
-  }, [m.V, m.R, m.r, onOutcome]);
+    onOutcome({
+      launched: running,
+      success: true,
+      metrics: {
+        current_a: current,
+        terminal_voltage_v: terminalVoltage,
+        external_power_w: externalPower,
+        internal_power_w: internalPower,
+      },
+    });
+  }, [current, terminalVoltage, externalPower, internalPower, running, onOutcome]);
 
   const run = useCallback(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    startRef.current = null;
     setRunning(true);
+    lastFrameRef.current = null;
 
     const tick = (now: number) => {
-      if (!startRef.current) startRef.current = now;
-      const elapsed = (now - startRef.current) / 1000;
-      setDotPos((dotSpeed * elapsed) % perim);
+      if (lastFrameRef.current === null) lastFrameRef.current = now;
+      const dt = (now - lastFrameRef.current) / 1000;
+      lastFrameRef.current = now;
+      setDotPos((pos) => (pos + speedRef.current * dt) % PERIMETER);
       frameRef.current = requestAnimationFrame(tick);
     };
+
     frameRef.current = requestAnimationFrame(tick);
-    onOutcome({ launched: true, success: true, metrics: { I: m.I, Vt: m.Vt, P_ext: m.P_ext } });
-  }, [m, dotSpeed, perim, onOutcome]);
+  }, []);
 
   const reset = useCallback(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
     setRunning(false);
     setDotPos(0);
-    startRef.current = null;
+    lastFrameRef.current = null;
     onOutcome({ launched: false, success: false, metrics: {} });
   }, [onOutcome]);
 
   const goToStep = (s: number) => {
-    setGuidedStep(clamp(s, 1, 4));
-    if (s >= 2 && !running) run();
+    const next = clamp(s, 1, 4);
+    setGuidedStep(next);
+    if (next === 3 && !running) run();
   };
 
-  // Map dotPos (px around rect) to (x,y)
-  function dotCoords(pos: number): { x: number; y: number } {
-    const p = pos % perim;
-    const top = RECT.w;
-    const right = RECT.h;
-    const bot = RECT.w;
-    const left = RECT.h;
-    if (p < top) return { x: RECT.x + p, y: RECT.y };
-    if (p < top + right) return { x: RECT.x + RECT.w, y: RECT.y + (p - top) };
-    if (p < top + right + bot) return { x: RECT.x + RECT.w - (p - top - right), y: RECT.y + RECT.h };
-    return { x: RECT.x, y: RECT.y + RECT.h - (p - top - right - bot) };
-  }
+  const dots = Array.from({ length: dotCount }, (_, index) => dotCoords(dotPos + (index * PERIMETER) / dotCount));
+  const resistorCrowd = Array.from({ length: Math.round(clamp(m.resistance / 18, 2, 6)) }, (_, index) => ({
+    x: RES_X + (index % 2 === 0 ? -10 : 10),
+    y: RES_MID_Y - 44 + index * 17,
+  }));
 
-  // Multiple dots staggered
-  const dots = Array.from({ length: 5 }, (_, i) => dotCoords((dotPos + i * perim / 5) % perim));
+  const highlightBattery = guidedStep === 1;
+  const highlightResistance = guidedStep === 2;
+  const highlightCurrent = guidedStep === 3;
+  const highlightLoad = guidedStep === 4;
+  const activeClass = "drop-shadow-[0_0_10px_rgba(242,193,78,0.95)]";
+  const activeStroke = (active: boolean, base = "#172033") => active ? "#f2c14e" : base;
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-glow">
@@ -126,68 +175,58 @@ export default function OhmLawScene({ config, onOutcome }: SceneProps) {
         <svg className="aspect-[1.46] w-full" viewBox={`0 0 ${SCENE_W} ${SCENE_H}`} aria-label="Ohm's law circuit visualization">
           <rect width={SCENE_W} height={SCENE_H} fill="#eef5f1" />
 
-          {/* Circuit wire */}
-          <rect
-            x={RECT.x} y={RECT.y} width={RECT.w} height={RECT.h}
-            fill="none" stroke="#172033" strokeWidth="4" rx="8"
-          />
+          <rect x={RECT.x} y={RECT.y} width={RECT.w} height={RECT.h} fill="none" stroke={activeStroke(highlightCurrent)} strokeWidth={highlightCurrent ? 6 : 4} rx="8" />
 
-          {/* Battery symbol (left side) */}
-          <line x1={BAT_X} y1={BAT_MID_Y - 28} x2={BAT_X} y2={BAT_MID_Y + 28} stroke="#eef5f1" strokeWidth="8" />
-          <line x1={BAT_X - 16} y1={BAT_MID_Y - 18} x2={BAT_X + 16} y2={BAT_MID_Y - 18} stroke="#dc2626" strokeWidth="5" />
-          <line x1={BAT_X - 10} y1={BAT_MID_Y + 6} x2={BAT_X + 10} y2={BAT_MID_Y + 6} stroke="#172033" strokeWidth="5" />
-          <line x1={BAT_X - 16} y1={BAT_MID_Y - 6} x2={BAT_X + 16} y2={BAT_MID_Y - 6} stroke="#172033" strokeWidth="5" />
-          <text x={BAT_X - 56} y={BAT_MID_Y + 5} fill="#172033" fontSize="14" fontWeight="700">EMF</text>
-          <text x={BAT_X - 56} y={BAT_MID_Y + 22} fill="#172033" fontSize="13">{fmt(m.V, 0)} V</text>
+          <g className={highlightBattery ? activeClass : ""}>
+            <rect x={BAT_X - 42} y={BAT_MID_Y - 58} width="84" height="116" rx="10" fill={highlightBattery ? "#fff7d6" : "#eef5f1"} stroke={activeStroke(highlightBattery)} strokeWidth={highlightBattery ? 3 : 1.5} />
+            <line x1={BAT_X} y1={BAT_MID_Y - 34} x2={BAT_X} y2={BAT_MID_Y + 34} stroke="#eef5f1" strokeWidth="10" />
+            <line x1={BAT_X - 18} y1={BAT_MID_Y - 20} x2={BAT_X + 18} y2={BAT_MID_Y - 20} stroke="#dc2626" strokeWidth="5" />
+            <line x1={BAT_X - 11} y1={BAT_MID_Y + 9} x2={BAT_X + 11} y2={BAT_MID_Y + 9} stroke="#172033" strokeWidth="5" />
+            <line x1={BAT_X - 16} y1={BAT_MID_Y - 5} x2={BAT_X + 16} y2={BAT_MID_Y - 5} stroke="#172033" strokeWidth="5" />
+            <text x={BAT_X - 72} y={BAT_MID_Y - 12} fill="#172033" fontSize="14" fontWeight="800">{EPSILON}</text>
+            <text x={BAT_X - 72} y={BAT_MID_Y + 8} fill="#172033" fontSize="13">{fmt(m.emf, 1)} V</text>
+          </g>
 
-          {/* Internal resistance label */}
-          {guidedStep >= 2 && (
-            <text x={BAT_X - 5} y={RECT.y - 12} fill="#6b7280" fontSize="12" fontWeight="600">r={fmt(m.r, 1)}Ω</text>
-          )}
+          {m.internalResistance > 0 ? (
+            <g className={highlightResistance || highlightLoad ? activeClass : ""}>
+              <polyline points={zigzagPoints(BAT_X + 54, BAT_MID_Y, 48, 8)} fill="none" stroke="#eef5f1" strokeWidth="8" strokeLinecap="round" />
+              <polyline points={zigzagPoints(BAT_X + 54, BAT_MID_Y, 48, 8)} fill="none" stroke={activeStroke(highlightResistance || highlightLoad, "#7c3aed")} strokeWidth={highlightResistance || highlightLoad ? 5 : 3.5} strokeLinecap="round" />
+              <text x={BAT_X + 72} y={BAT_MID_Y + 5} fill="#6d28d9" fontSize="13" fontWeight="800">r = {fmt(m.internalResistance, 1)} {OMEGA}</text>
+              {highlightLoad ? <text x={BAT_X + 72} y={BAT_MID_Y + 24} fill="#92400e" fontSize="12" fontWeight="700">internal loss</text> : null}
+            </g>
+          ) : null}
 
-          {/* External resistor (right side, zigzag) */}
-          {(() => {
-            const rx = RES_X;
-            const ry = RES_MID_Y;
-            const h2 = 36;
-            const pts = [
-              `${rx},${ry - h2}`,
-              `${rx - 14},${ry - h2 + 12}`,
-              `${rx + 14},${ry - h2 + 24}`,
-              `${rx - 14},${ry - h2 + 36}`,
-              `${rx + 14},${ry - h2 + 48}`,
-              `${rx},${ry + h2}`,
-            ].join(" ");
-            return (
-              <>
-                <polyline points={pts} fill="none" stroke="#eef5f1" strokeWidth="8" strokeLinecap="round" />
-                <polyline points={pts} fill="none" stroke="#216869" strokeWidth="4" strokeLinecap="round" />
-              </>
-            );
-          })()}
-          <text x={RES_X + 20} y={RES_MID_Y + 5} fill="#172033" fontSize="14" fontWeight="700">R={fmt(m.R, 0)} Ω</text>
+          <g className={highlightResistance || highlightLoad ? activeClass : ""}>
+            <polyline points={zigzagPoints(RES_X, RES_MID_Y)} fill="none" stroke="#eef5f1" strokeWidth="10" strokeLinecap="round" />
+            <polyline points={zigzagPoints(RES_X, RES_MID_Y)} fill="none" stroke={activeStroke(highlightResistance || highlightLoad, "#216869")} strokeWidth={highlightResistance || highlightLoad ? 6 : 4} strokeLinecap="round" />
+            <text x={RES_X + 24} y={RES_MID_Y - 6} fill="#172033" fontSize="14" fontWeight="800">R = {fmt(m.resistance, 0)} {OMEGA}</text>
+            <text x={RES_X + 24} y={RES_MID_Y + 14} fill="#475569" fontSize="12" fontWeight="700">external load</text>
+          </g>
 
-          {/* Current dots */}
-          {running && dots.map((d, i) => <Dot key={i} x={d.x} y={d.y} />)}
+          {running ? dots.map((dot, index) => <ChargeDot key={index} {...dot} index={index} />) : null}
+          {running ? resistorCrowd.map((dot, index) => (
+            <circle key={`crowd-${index}`} cx={dot.x} cy={dot.y} r="3.5" fill="#f59e0b" opacity="0.55" />
+          )) : null}
 
-          {/* Labels */}
-          <text x={SCENE_W / 2} y={RECT.y - 18} textAnchor="middle" fill="#172033" fontSize="14" fontWeight="700">
-            I = {fmt(m.I, 3)} A
+          <text x={SCENE_W / 2} y={RECT.y - 20} textAnchor="middle" fill="#172033" fontSize="15" fontWeight="800">
+            I = {fmt(m.current, 3)} A
           </text>
-          <text x={24} y={36} fill="#172033" fontSize="15" fontWeight="700">V_t = {fmt(m.Vt, 2)} V</text>
-          <text x={24} y={60} fill="#172033" fontSize="15" fontWeight="700">P = {fmt(m.P_ext, 2)} W</text>
+          <text x={24} y={34} fill="#172033" fontSize="15" fontWeight="800">{V_T} = {fmt(m.terminalVoltage, 2)} V</text>
+          <text x={24} y={58} fill="#172033" fontSize="15" fontWeight="800">{P_EXT} = {fmt(m.externalPower, 2)} W</text>
+          {m.internalResistance > 0 ? <text x={24} y={82} fill="#7c3aed" fontSize="15" fontWeight="800">{P_INT} = {fmt(m.internalPower, 2)} W</text> : null}
         </svg>
       </div>
-      <SceneActions running={running} onRun={run} onReset={reset} runLabel="Close Circuit" runningLabel="Current Flowing…" />
+
+      <SceneActions running={running} onRun={run} onReset={reset} runLabel="Start Current" runningLabel="Current Flowing..." />
       <GuidedBreakdown step={guidedStep} steps={STEPS} onStepChange={goToStep} />
       <InfoPanels
-        given={[["V (EMF)", `${fmt(m.V, 0)} V`], ["R", `${fmt(m.R, 0)} Ω`], ["r", `${fmt(m.r, 1)} Ω`]]}
-        equations={["I = V/(R+r)", "V_t = V−Ir", "P = I²R", "P_int = I²r"]}
+        given={[[EPSILON, `${fmt(m.emf, 1)} V`], ["R", `${fmt(m.resistance, 0)} ${OMEGA}`], ["r", `${fmt(m.internalResistance, 1)} ${OMEGA}`]]}
+        equations={[`I = ${EPSILON}/(R+r)`, `${V_T} = IR = ${EPSILON} - Ir`, `${P_EXT} = I\u00b2R`, `${P_INT} = I\u00b2r`]}
         results={[
-          ["Current I", `${fmt(m.I, 4)} A`, "green"],
-          ["Terminal voltage V_t", `${fmt(m.Vt, 2)} V`],
-          ["External power P", `${fmt(m.P_ext, 3)} W`, "green"],
-          ["Internal power loss", `${fmt(m.P_int, 3)} W`],
+          ["Current I", `${fmt(m.current, 4)} A`, "green"],
+          [`Terminal voltage ${V_T}`, `${fmt(m.terminalVoltage, 2)} V`, "green"],
+          [`External power ${P_EXT}`, `${fmt(m.externalPower, 3)} W`],
+          ...(m.internalResistance > 0 ? [[`Internal loss ${P_INT}`, `${fmt(m.internalPower, 3)} W`]] as [string, string][] : []),
         ]}
       />
     </div>

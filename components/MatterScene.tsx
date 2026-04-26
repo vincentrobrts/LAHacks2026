@@ -137,22 +137,8 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
   const normalArrow = arrowPoints(rawBlockCenter.x + normalDir.x * 4, rawBlockCenter.y + normalDir.y * 4, normalDir.x * normalLen, normalDir.y * normalLen);
   const frictionArrow = arrowPoints(rawBlockCenter.x - normalDir.x * 34, rawBlockCenter.y - normalDir.y * 34, -downRamp.x * frictionLen, -downRamp.y * frictionLen);
   const componentArrow = arrowPoints(rawBlockCenter.x + normalDir.x * 42, rawBlockCenter.y + normalDir.y * 42, downRamp.x * componentLen, downRamp.y * componentLen);
-  const scenePoints = [
-    rawTop,
-    rawBottom,
-    { x: rawTop.x, y: rawBottom.y },
-    { x: rawBlockCenter.x - 54, y: rawBlockCenter.y - 44 },
-    { x: rawBlockCenter.x + 54, y: rawBlockCenter.y + 44 },
-    { x: gravityArrow.x1, y: gravityArrow.y1 },
-    { x: gravityArrow.x2, y: gravityArrow.y2 },
-    { x: normalArrow.x1, y: normalArrow.y1 },
-    { x: normalArrow.x2, y: normalArrow.y2 },
-    { x: frictionArrow.x1, y: frictionArrow.y1 },
-    { x: frictionArrow.x2, y: frictionArrow.y2 },
-    { x: componentArrow.x1, y: componentArrow.y1 },
-    { x: componentArrow.x2, y: componentArrow.y2 },
-  ];
-  const bounds = scenePoints.reduce(
+  const rampPoints = [rawTop, rawBottom, { x: rawTop.x, y: rawBottom.y }];
+  const rampBounds = rampPoints.reduce(
     (box, point) => ({
       minX: Math.min(box.minX, point.x),
       maxX: Math.max(box.maxX, point.x),
@@ -162,8 +148,8 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
     { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
   );
   const centerOffset = {
-    x: WIDTH / 2 - (bounds.minX + bounds.maxX) / 2,
-    y: HEIGHT / 2 - (bounds.minY + bounds.maxY) / 2,
+    x: WIDTH / 2 - (rampBounds.minX + rampBounds.maxX) / 2,
+    y: HEIGHT / 2 - (rampBounds.minY + rampBounds.maxY) / 2 + 18,
   };
   const systemTransform = `translate(${centerOffset.x.toFixed(2)} ${centerOffset.y.toFixed(2)})`;
   const blockTransform = `translate(${rawBlockCenter.x} ${rawBlockCenter.y}) rotate(${metrics.angle})`;

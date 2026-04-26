@@ -156,12 +156,117 @@ function metricLabel(key: string) {
     time_of_flight_s: <>time of flight</>,
     final_speed_m_s: <>final speed</>,
     q1q2_force_n: <>q<sub>1</sub>q<sub>2</sub> force</>,
+    current_a: <>I</>,
+    terminal_voltage_v: <>V<sub>t</sub></>,
+    external_power_w: <>P<sub>ext</sub></>,
+    internal_power_w: <>P<sub>int</sub></>,
   } as const;
   return labels[key as keyof typeof labels] ?? key.replace(/m1/g, "m₁").replace(/m2/g, "m₂").replace(/q1/g, "q₁").replace(/q2/g, "q₂").replace(/_/g, " ");
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function hasNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function validateSimulationConfig(config: SimulationConfig, prompt: string) {
+  const lower = prompt.toLowerCase();
+  const next: SimulationConfig = {
+    ...config,
+    params: { ...config.params },
+    world: {
+      gravity: hasNumber(config.world?.gravity) ? config.world.gravity : 9.8,
+      friction: hasNumber(config.world?.friction) ? config.world.friction : 0,
+    },
+  };
+  const assumptions: string[] = [];
+  const missing: string[] = [];
+  const assumed = (key: string, value: number, label: string) => {
+    next.params[key] = value;
+    assumptions.push(label);
+  };
+  const requireParam = (key: string, label = key) => {
+    if (!hasNumber(next.params[key])) missing.push(label);
+  };
+  const defaultParam = (key: string, value: number, label: string) => {
+    if (!hasNumber(next.params[key])) assumed(key, value, label);
+  };
+
+  if (!hasNumber(config.world?.gravity) && GRAVITY_SCENARIOS.has(config.type)) {
+    assumptions.push("Assumed g = 9.8 m/s²");
+  }
+
+  switch (config.type) {
+    case "inclined_plane":
+      requireParam("angle", "angle θ");
+      defaultParam("mass", 1, "Assumed mass m = 1 kg");
+      defaultParam("distance", 3, "Assumed distance d = 3 m for animation");
+      if (!hasNumber(next.params.friction)) defaultParam("friction", 0, "Assumed friction μ = 0");
+      if (/\bfrictionless\b/.test(lower)) {
+        next.params.friction = 0;
+        next.world.friction = 0;
+      }
+      break;
+    case "atwood_table":
+      requireParam("mass1", "m₁");
+      requireParam("mass2", "m₂");
+      defaultParam("distance", 3, "Assumed distance d = 3 m for animation");
+      if (!hasNumber(next.params.friction)) defaultParam("friction", 0, "Assumed friction μ = 0");
+      if (/\bfrictionless\b/.test(lower)) {
+        next.params.friction = 0;
+        next.world.friction = 0;
+      }
+      break;
+    case "electric_field": {
+      const charges = ["charge1", "charge2", "charge3", "charge4"].filter((key) => hasNumber(next.params[key]));
+      if (charges.length < 2) missing.push("at least two charges");
+      if (!hasNumber(next.params.separation)) missing.push("distance between charges");
+      break;
+    }
+    case "collision_1d":
+      requireParam("mass1", "m₁");
+      requireParam("mass2", "m₂");
+      requireParam("v1", "v₁");
+      requireParam("v2", "v₂");
+      if (!hasNumber(next.params.restitution)) defaultParam("restitution", /\belastic\b/.test(lower) ? 1 : 0, /\belastic\b/.test(lower) ? "Assumed restitution e = 1 for elastic collision" : "Assumed restitution e = 0");
+      break;
+    case "free_fall":
+      requireParam("height", "height h");
+      defaultParam("mass", 1, "Assumed mass m = 1 kg");
+      defaultParam("air_resistance", 0, "Assumed air resistance = 0");
+      break;
+    case "pendulum":
+      requireParam("length", "length L");
+      requireParam("initial_angle", "initial angle θ₀");
+      defaultParam("mass", 1, "Assumed mass m = 1 kg");
+      break;
+    case "projectile_motion":
+      requireParam("angle", "launch angle θ");
+      requireParam("speed", "speed v₀");
+      defaultParam("mass", 1, "Assumed mass m = 1 kg");
+      defaultParam("initial_height", 0, "Assumed initial height h₀ = 0");
+      break;
+    case "circular_motion":
+      requireParam("mass", "mass m");
+      requireParam("radius", "radius r");
+      requireParam("speed", "speed v");
+      break;
+    case "ohm_law":
+      if (!hasNumber(next.params.voltage) && hasNumber(next.params.emf)) next.params.voltage = next.params.emf;
+      requireParam("voltage", "voltage ε");
+      requireParam("resistance", "external resistance R");
+      defaultParam("internal_resistance", 0, "Assumed internal resistance r = 0 Ω");
+      break;
+    default:
+      Object.entries(next.params).forEach(([key, value]) => {
+        if (!hasNumber(value)) missing.push(key);
+      });
+  }
+
+  return { config: next, assumptions, missing, valid: missing.length === 0 };
 }
 
 function isUnsupportedHorizontalForcePrompt(prompt: string) {
@@ -327,9 +432,9 @@ export default function SimulationClient() {
 
   const updateParam = (key: string, value: number) => {
     const next: SimulationConfig = {
-      ...config,
-      params: { ...config.params, [key]: value },
-      world: key === "friction" ? { ...config.world, friction: value } : config.world,
+      ...validated.config,
+      params: { ...validated.config.params, [key]: value },
+      world: key === "friction" ? { ...validated.config.world, friction: value } : validated.config.world,
     };
     setConfig(next);
     setOutcome(null);
@@ -338,8 +443,8 @@ export default function SimulationClient() {
 
   const updateGravity = (value: number) => {
     const next: SimulationConfig = {
-      ...config,
-      world: { ...config.world, gravity: value },
+      ...validated.config,
+      world: { ...validated.config.world, gravity: value },
     };
     setConfig(next);
     setOutcome(null);
@@ -371,7 +476,7 @@ export default function SimulationClient() {
         return;
       }
 
-      const nextConfig = normalizeElectricFieldConfig(normalizeAtwoodConfig(normalizeCollisionConfig(parsed, prompt), prompt), prompt);
+      const nextConfig = validateSimulationConfig(normalizeElectricFieldConfig(normalizeAtwoodConfig(normalizeCollisionConfig(parsed, prompt), prompt), prompt), prompt).config;
       setConfig(nextConfig);
       setOutcome(null);
       saveHistory(prompt, nextConfig);
@@ -405,12 +510,14 @@ export default function SimulationClient() {
   };
 
   const shareLink = typeof window === "undefined" ? "" : window.location.href;
-  const explanation = buildExplanation(config, outcome);
-  const shownExplanation = displayExplanation(config, outcome, explanation);
-  const scenarioLabel = SCENARIO_LABELS[config.type] ?? config.type;
-  const paramKeys = PARAM_ORDER[config.type] ?? Object.keys(config.params);
-  const visibleParams = Object.entries(config.params).filter(([key]) => paramKeys.includes(key));
-  const showGravity = GRAVITY_SCENARIOS.has(config.type);
+  const validated = useMemo(() => validateSimulationConfig(config, prompt), [config, prompt]);
+  const activeConfig = validated.config;
+  const explanation = buildExplanation(activeConfig, outcome);
+  const shownExplanation = displayExplanation(activeConfig, outcome, explanation);
+  const scenarioLabel = SCENARIO_LABELS[activeConfig.type] ?? activeConfig.type;
+  const paramKeys = PARAM_ORDER[activeConfig.type] ?? Object.keys(activeConfig.params);
+  const visibleParams = Object.entries(activeConfig.params).filter(([key]) => paramKeys.includes(key));
+  const showGravity = GRAVITY_SCENARIOS.has(activeConfig.type);
   const hasRun = Boolean(outcome?.launched);
 
   return (
@@ -460,7 +567,21 @@ export default function SimulationClient() {
 
         <div className="grid gap-4 xl:grid-cols-[minmax(560px,760px)_310px] xl:justify-center">
           <section className="min-w-0">
-            <MatterScene config={config} onOutcome={setOutcome} onLoadAtwoodExample={loadAtwoodExample} />
+            {validated.valid ? (
+              <MatterScene config={activeConfig} onOutcome={setOutcome} onLoadAtwoodExample={loadAtwoodExample} />
+            ) : (
+              <div className="rounded-xl bg-white/85 p-5 shadow-glow ring-1 ring-slate-200/60">
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                  <h2 className="text-lg font-black">We couldn&apos;t fully understand this problem.</h2>
+                  <p className="mt-2 text-sm leading-6">Missing required values: {validated.missing.join(", ")}</p>
+                  <p className="mt-2 text-sm leading-6 text-amber-900">Try adding those values, or choose one of the examples below.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button onClick={runDemo} className="rounded-md bg-[#216869] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1a5556]">Use Default Demo</button>
+                    <button onClick={loadAtwoodExample} className="rounded-md border border-amber-300 bg-white px-4 py-2 text-sm font-bold text-amber-950 transition hover:bg-amber-100">Use Atwood Example</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           <aside className="space-y-3 xl:sticky xl:top-3 xl:self-start">
@@ -469,22 +590,22 @@ export default function SimulationClient() {
               <div className="mt-3 space-y-4">
                 {showGravity ? <label className="block">
                   <span className="flex justify-between text-sm font-semibold">
-                    <span>{paramLabel(config.type, "gravity")}</span>
-                    <span>{config.world.gravity.toFixed(1)} m/s²</span>
+                    <span>{paramLabel(activeConfig.type, "gravity")}</span>
+                    <span>{activeConfig.world.gravity.toFixed(1)} m/s²</span>
                   </span>
                   <input
                     className="mt-2 w-full"
                     type="range" min="1" max="20" step="0.1"
-                    value={config.world.gravity}
+                    value={activeConfig.world.gravity}
                     onChange={(e) => updateGravity(Number(e.target.value))}
                   />
                 </label> : null}
                 {visibleParams.map(([key, value]) => {
-                  const range = sliderRange(config.type, key);
+                  const range = sliderRange(activeConfig.type, key);
                   return (
                     <label key={key} className="block">
                       <span className="flex justify-between gap-3 text-sm font-semibold">
-                        <span>{paramLabel(config.type, key)}</span>
+                        <span>{paramLabel(activeConfig.type, key)}</span>
                         <span>{Number(value).toFixed(1)}{key === "mass" || key === "mass1" || key === "mass2" ? " kg" : ""}</span>
                       </span>
                       <input
@@ -500,6 +621,14 @@ export default function SimulationClient() {
                   );
                 })}
               </div>
+              {validated.assumptions.length > 0 ? (
+                <div className="mt-3 rounded-md bg-slate-50 p-2 text-xs leading-5 text-slate-600 ring-1 ring-slate-200/60">
+                  {validated.assumptions.map((assumption) => <div key={assumption}>{assumption}</div>)}
+                </div>
+              ) : null}
+              {!validated.valid ? (
+                <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-semibold leading-5 text-amber-900">Add the missing values to enable this simulation.</p>
+              ) : null}
             </section>
             <section className={`rounded-xl bg-white/75 p-3 shadow-sm ring-1 ring-slate-200/60 transition ${hasRun ? "ring-[#216869]/25" : ""}`}>
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Results</h2>
@@ -570,7 +699,7 @@ export default function SimulationClient() {
               </div>
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">Developer Details</h3>
-                <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-emerald-100">{parserJson(config)}</pre>
+                <pre className="mt-2 max-h-72 overflow-auto rounded-md bg-slate-950 p-3 text-xs leading-5 text-emerald-100">{parserJson(activeConfig)}</pre>
               </div>
             </div>
           </details>
