@@ -98,6 +98,63 @@ A 6 kg block on a 50 degree ramp versus a 3 kg block on a 25 degree ramp, connec
 
 Circuits
 
+A 9V battery with a 10 ohm resistor
 A 9V battery in series with a 10 ohm and 20 ohm resistor.
 12V battery with R1=5Ω, R2=10Ω, R3=15Ω in series.
 A 6 volt battery connected to three resistors: 4Ω, 8Ω, and 12Ω in series.
+
+
+
+1. Ramp-Atwood Machine (rampAtwood)
+
+Standard Forward Motion (m₁ slides down):
+
+"A 10kg block sits on a 45-degree incline with a friction coefficient of 0.1. It is attached to a rope that goes over a pulley at the top of the ramp to a 2kg hanging mass."
+
+Reverse Motion (m₂ is heavy, pulls m₁ up):
+
+"A 3kg block is on a frictionless 20-degree incline, connected by a rope over a pulley to a massive 15kg hanging weight."
+
+Static Friction Trap (Equilibrium):
+
+"A 5kg block sits on a 15-degree incline with a high friction coefficient of 0.8. It is connected via a pulley to a 1kg hanging mass." (The net driving force won't overcome the 0.8 friction, acceleration should equal 0).
+
+2. Double Ramp Atwood (doubleRamp)
+
+Standard Imbalance (Left side wins):
+
+"Two inclines meet at a peak with a pulley. On the left 50-degree ramp is a 10kg block. On the right 20-degree ramp is a 2kg block. They are connected by a rope. Friction is zero for both."
+
+Friction Combats Motion (Right side wins):
+
+"A 4kg block on a 30-degree left ramp with 0.4 friction is connected over a peak pulley to an 8kg block on a 60-degree right ramp with no friction."
+
+Perfect Equilibrium:
+
+"A 5kg block on a frictionless 30-degree left ramp is connected over a pulley to another 5kg block on a frictionless 30-degree right ramp." (Acceleration should perfectly cancel to 0).
+
+3. Spring-Atwood Machine (springAtwood)
+
+Standard Oscillation:
+
+"A 4kg block is resting on a frictionless horizontal table, attached to a wall by a spring with a constant of 50 N/m. The block is also tied to a rope that runs over a pulley at the table's edge, connecting to a 2kg hanging mass."
+
+Heavy Spring / Stiff Oscillation:
+
+"A 1kg block on a table is connected to a very stiff spring with k=120 N/m. A rope goes from the block over a pulley to a 5kg hanging mass." (Should produce a visually faster oscillation / higher omega).
+
+4. Standard Atwood Machine (atwood)
+
+Standard Drop:
+
+"A rope hangs over a pulley. On the left side is a 12kg mass, and on the right side is a 7kg mass."
+
+Slow Drop (Near equal masses):
+
+"A 5kg mass and a 4.8kg mass are hanging from a frictionless pulley."
+
+5. Circuits (circuit)
+
+Standard Series/Parallel:
+
+"A 12V battery is connected to a 100 ohm resistor, a 220 ohm resistor, and a 50 ohm resistor all in series."
