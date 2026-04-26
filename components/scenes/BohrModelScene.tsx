@@ -93,15 +93,15 @@ export default function BohrModelScene({ config, onOutcome }: SceneProps) {
       const angle = omega * elapsed * 2;
       setElectronAngle(angle);
 
-      // Trigger transition after 2 orbits
-      if (!transitioned && elapsed > (2 * Math.PI * 2) / omega) {
+      // Trigger transition after 1 orbit (faster)
+      if (!transitioned && elapsed > (2 * Math.PI) / omega) {
         transitioned = true;
         setTransitioning(true);
         setTimeout(() => {
           setCurrentN(m.nf);
           setTransitioning(false);
-          startRef.current = now + 500;
-        }, 800);
+          startRef.current = now + 200;
+        }, 250);
       }
 
       frameRef.current = requestAnimationFrame(tick);

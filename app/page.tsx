@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRight, History } from "lucide-react";
+import { ArrowRight, History, Sparkles, Layers } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { parseWithAgentverse } from "@/lib/agentverse";
@@ -44,7 +45,7 @@ function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): Simula
       ...(distanceMatch ? { distance: clamp(Number(distanceMatch[1]), 1, 5) } : {}),
       ...(frictionless ? { friction: 0 } : frictionMatch ? { friction: clamp(Number(frictionMatch[1]), 0, 0.9) } : {}),
     },
-    world: { ...config.world, friction: frictionless ? 0 : config.world.friction ?? 0 },
+    world: { ...config.world, friction: frictionless ? 0 : config.world?.friction ?? 0 },
   };
 }
 
@@ -58,8 +59,24 @@ export default function Home() {
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
   }, []);
 
+  const isCompoundPrompt = (text: string) => {
+    const t = text.toLowerCase();
+    const multiResistor = (t.match(/\br\d+\b/g) ?? []).length >= 2 || t.includes(" series");
+    const compoundPulley = t.includes("pulley") && (t.includes("ramp") || t.includes("spring"));
+    return (
+      compoundPulley ||
+      (t.includes("ramp") && t.includes("connected")) ||
+      multiResistor ||
+      (t.includes("spring") && t.includes("pulley"))
+    );
+  };
+
   const start = async (perfect = false) => {
     setMessage("");
+    if (!perfect && isCompoundPrompt(prompt)) {
+      router.push(`/compound?prompt=${encodeURIComponent(prompt)}`);
+      return;
+    }
     const parsed = perfect ? DEMO_SHOT : prompt === ATWOOD_PROMPT ? DEFAULT_CONFIGS.atwood_table : await parseWithAgentverse(prompt);
     if (!parsed) {
       setMessage("Intuify could not confidently build a visualization from that prompt yet. Try one of the examples.");
@@ -163,7 +180,10 @@ export default function Home() {
             <div className="mt-3 space-y-2">
               {history.length === 0 ? <p className="text-sm text-slate-500">No local history yet.</p> : null}
               {history.slice(0, 3).map((item) => (
-                <button key={item.id} onClick={() => router.push(`/sim?state=${encodeSimulation(item.config, item.prompt)}`)} className="block w-full rounded-md bg-white p-3 text-left text-sm font-semibold text-slate-700 hover:text-[#216869]">
+                <button 
+                  key={item.id} 
+                  onClick={() => router.push(`/sim?state=${encodeSimulation(item.config, item.prompt)}`)} 
+                  className="block w-full rounded-md bg-white p-3 text-left text-sm font-semibold text-slate-700 hover:text-[#216869]">
                   {item.prompt}
                 </button>
               ))}

@@ -36,5 +36,5 @@ LA Hacks 2026
 
 ## Team
 
-Person A — AI + backend  
-Person B — frontend + simulation + UI/UX
+Yifan Fang — AI + backend  
+Vincent Roberts — frontend + simulation + UI/UX

@@ -19,6 +19,7 @@ const VALID_TYPES: SimulationType[] = [
   "bernoulli",
   "standing_waves",
   "bohr_model",
+  "pulley",
 ];
 
 const SYSTEM_PROMPT = `You are a physics simulation configurator. Given a physics problem or scenario in natural language, identify which supported simulation type best fits, extract the relevant parameters, and output ONLY valid JSON.
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
   try {
     const groq = new Groq({ apiKey });
     const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: prompt },

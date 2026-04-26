@@ -40,6 +40,10 @@ Params: { "angle": <5–60 deg>, "friction": <0–0.9>, "mass": <0.5–5 kg>, "d
 Use when: dropping an object, free fall, falling from height, gravity comparison.
 Params: { "height": <meters>, "mass": <0.5–10 kg>, "air_resistance": <0–0.1, 0=vacuum> }
 
+### atwood_machine
+Use when: two masses hang on either side of a frictionless pulley, classic Atwood machine.
+Params: { "mass1": <0.5–10 kg>, "mass2": <0.5–10 kg> }
+
 ### spring_mass
 Use when: a mass on a spring, Hooke's law, SHM, oscillation with a spring constant.
 Params: { "spring_constant": <1–100 N/m>, "mass": <0.5–5 kg>, "amplitude": <0.05–1.5 m> }
@@ -101,7 +105,8 @@ DEFAULTS = {
     "collision_1d": {"mass1": 2, "v1": 5, "mass2": 1, "v2": -2, "restitution": 0.8},
     "pendulum": {"length": 3, "initial_angle": 45, "mass": 1},
     "inclined_plane": {"angle": 30, "friction": 0.2, "mass": 5, "distance": 3},
-    "free_fall": {"height": 20, "mass": 1, "air_resistance": 0},
+    "free_fall": {"height": 200, "mass": 1, "air_resistance": 0},
+    "atwood_machine": {"mass1": 3, "mass2": 5},
     "spring_mass": {"spring_constant": 20, "mass": 1, "amplitude": 0.5},
     "atwood_table": {"mass1": 4, "mass2": 2, "friction": 0, "distance": 3},
     "circular_motion": {"radius": 2, "mass": 1, "speed": 4},
@@ -120,7 +125,7 @@ def clamp(v, lo, hi):
 
 def parse_with_groq(prompt: str) -> dict:
     payload = json.dumps({
-        "model": "llama-3.3-70b-versatile",
+        "model": "llama-3.1-8b-instant",
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
@@ -240,6 +245,19 @@ def compute_results(config: dict) -> dict:
             "max_force_n": round(k * A, 2),
             "angular_freq_rad_s": round(omega, 3),
         }
+
+    if sim_type == "atwood_machine":
+      m1 = p["mass1"]
+      m2 = p["mass2"]
+      # Classic Atwood: a = (m2 - m1)g / (m1 + m2), T = 2m1m2g/(m1+m2)
+      a = (m2 - m1) * g / (m1 + m2)
+      T = 2 * m1 * m2 * g / (m1 + m2)
+      return {
+        "acceleration_m_s2": round(abs(a), 3),
+        "tension_n": round(T, 2),
+        "heavier_mass": 2 if m2 > m1 else 1,
+        "direction": "m2 descends, m1 rises" if m2 > m1 else "m1 descends, m2 rises"
+      }
 
     if sim_type == "atwood_table":
         m1, m2 = p["mass1"], p["mass2"]

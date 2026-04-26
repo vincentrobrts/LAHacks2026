@@ -10,6 +10,7 @@ import OhmLawScene from "@/components/scenes/OhmLawScene";
 import BernoulliScene from "@/components/scenes/BernoulliScene";
 import StandingWavesScene from "@/components/scenes/StandingWavesScene";
 import BohrModelScene from "@/components/scenes/BohrModelScene";
+import PulleyScene from "@/components/scenes/PulleyScene";
 
 type Props = {
   config: SimulationConfig;
@@ -128,7 +129,9 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
   };
   const downRamp = { x: Math.cos(metrics.theta), y: Math.sin(metrics.theta) };
   const normalDir = { x: Math.sin(metrics.theta), y: -Math.cos(metrics.theta) };
-  const blockTravel = rampLength * clamp(progress, 0, 0.96);
+  // Scale travel pixels by distance so block stops earlier for shorter distances (max slider = 5 m = full ramp)
+  const maxBlockTravel = Math.min((metrics.distance / 5) * rampLength, rampLength * 0.96);
+  const blockTravel = maxBlockTravel * Math.min(Math.max(progress, 0), 1);
   const rawBlockCenter = {
     x: rawTop.x + downRamp.x * blockTravel + normalDir.x * 22,
     y: rawTop.y + downRamp.y * blockTravel + normalDir.y * 22,
@@ -214,7 +217,7 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
 
     const startedAt = performance.now();
     const timeToBottom = metrics.timeToBottom;
-    const visualDuration = clamp(timeToBottom * 900, 900, 3600);
+    const visualDuration = clamp(timeToBottom * 400, 300, 1200);
     setRunning(true);
 
     const tick = (now: number) => {
@@ -535,7 +538,7 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
 
     const startedAt = performance.now();
     const timeToBottom = metrics.timeToBottom;
-    const visualDuration = clamp(timeToBottom * 900, 900, 3600);
+    const visualDuration = clamp(timeToBottom * 400, 300, 1200);
     setRunning(true);
 
     const tick = (now: number) => {
@@ -1172,7 +1175,7 @@ function CollisionScene({ config, onOutcome }: Props) {
     setPhase("pre");
     setProgress(0);
     const startedAt = performance.now();
-    const duration = 2200;
+    const duration = 900;
     const tick = (now: number) => {
       const p = clamp((now - startedAt) / duration, 0, 1);
       setProgress(p);
@@ -1318,7 +1321,7 @@ function FreeFallScene({ config, onOutcome }: Props) {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
     setProgress(0); setCurrentSpeed(0);
     const startedAt = performance.now();
-    const dur = clamp(metrics.tof * 900, 700, 4000);
+    const dur = clamp(metrics.tof * 400, 250, 1200);
     setRunning(true);
     const tick = (now: number) => {
       const p = clamp((now - startedAt) / dur, 0, 1);
@@ -1589,5 +1592,6 @@ export default function MatterScene(props: Props) {
   if (props.config.type === "bernoulli") return <BernoulliScene {...props} />;
   if (props.config.type === "standing_waves") return <StandingWavesScene {...props} />;
   if (props.config.type === "bohr_model") return <BohrModelScene {...props} />;
+  if (props.config.type === "pulley") return <PulleyScene {...props} />;
   return <PlaceholderScene {...props} />;
 }

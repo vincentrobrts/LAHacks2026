@@ -1,6 +1,6 @@
 "use client";
 
-import { Clipboard, History, Share2, Sparkles } from "lucide-react";
+import { Clipboard, History, Layers, Share2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -52,6 +52,7 @@ const SCENARIO_LABELS: Record<string, string> = {
   bernoulli: "Bernoulli Flow",
   standing_waves: "Standing Waves",
   bohr_model: "Bohr Model",
+  pulley: "Fixed Pulley",
 };
 
 const GRAVITY_SCENARIOS = new Set(["projectile_motion", "pendulum", "inclined_plane", "free_fall", "atwood_table", "circular_motion", "bernoulli"]);
@@ -913,7 +914,25 @@ export default function SimulationClient() {
     updateShareUrl(next);
   };
 
+  const isCompoundPrompt = (text: string) => {
+    const t = text.toLowerCase();
+    // Multi-component circuit: needs battery + resistor together, or "series", or R1/R2 notation
+    const multiResistor = (t.match(/\br\d+\b/g) ?? []).length >= 2 || t.includes("series");
+    const compoundCircuit = multiResistor || (t.includes("battery") && t.includes("resistor"));
+    return (
+      (t.includes("pulley") && (t.includes("ramp") || t.includes("hanging") || t.includes("spring") || t.includes("connected"))) ||
+      (t.includes("ramp") && t.includes("connected")) ||
+      t.includes("atwood") ||
+      compoundCircuit ||
+      (t.includes("spring") && t.includes("pulley"))
+    );
+  };
+
   const reparse = async () => {
+    if (isCompoundPrompt(prompt)) {
+      router.push(`/compound?prompt=${encodeURIComponent(prompt)}`);
+      return;
+    }
     setParsing(true);
     setSubmittedAttempted(true);
     setParseMessage("");
