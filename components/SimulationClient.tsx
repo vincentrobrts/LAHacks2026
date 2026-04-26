@@ -52,7 +52,7 @@ const SCENARIO_LABELS: Record<string, string> = {
   bohr_model: "Bohr Model",
 };
 
-const GRAVITY_SCENARIOS = new Set(["projectile_motion", "pendulum", "inclined_plane", "free_fall", "atwood_table", "spring_mass", "circular_motion", "torque", "bernoulli"]);
+const GRAVITY_SCENARIOS = new Set(["projectile_motion", "pendulum", "inclined_plane", "free_fall", "atwood_table", "circular_motion", "bernoulli"]);
 
 const PARAM_ORDER: Record<string, string[]> = {
   projectile_motion: ["angle", "speed", "mass", "initial_height"],
@@ -81,7 +81,7 @@ const SLIDER_RANGES: Record<string, { min: number; max: number; step: number }> 
   friction: { min: 0, max: 0.9, step: 0.01 },
   distance: { min: 1, max: 5, step: 0.1 },
   initial_height: { min: 0, max: 400, step: 1 },
-  height: { min: 10, max: 400, step: 1 },
+  height: { min: 1, max: 5000, step: 1 },
   length: { min: 0.2, max: 250, step: 0.1 },
   v1: { min: -20, max: 20, step: 0.1 },
   v2: { min: -20, max: 20, step: 0.1 },
@@ -97,14 +97,14 @@ const SLIDER_RANGES: Record<string, { min: number; max: number; step: number }> 
   charge3: { min: -10, max: 10, step: 0.1 },
   charge4: { min: -10, max: 10, step: 0.1 },
   separation: { min: 0.1, max: 5, step: 0.1 },
-  voltage: { min: 0, max: 48, step: 0.5 },
-  resistance: { min: 1, max: 200, step: 1 },
-  internal_resistance: { min: 0, max: 20, step: 0.1 },
+  voltage: { min: 0, max: 24, step: 0.5 },
+  resistance: { min: 1, max: 100, step: 1 },
+  internal_resistance: { min: 0, max: 10, step: 0.1 },
   area_ratio: { min: 0.2, max: 8, step: 0.1 },
   density: { min: 1, max: 1500, step: 1 },
-  tension: { min: 1, max: 200, step: 1 },
-  linear_density: { min: 0.001, max: 0.05, step: 0.001 },
-  harmonic: { min: 1, max: 8, step: 1 },
+  tension: { min: 1, max: 100, step: 1 },
+  linear_density: { min: 0.001, max: 0.01, step: 0.001 },
+  harmonic: { min: 1, max: 6, step: 1 },
   atomic_number: { min: 1, max: 10, step: 1 },
   n_initial: { min: 2, max: 8, step: 1 },
   n_final: { min: 1, max: 7, step: 1 },
@@ -124,6 +124,7 @@ function saveHistory(prompt: string, config: SimulationConfig) {
 
 function paramLabel(type: string, key: string) {
   if (key === "gravity") return <>gravity g</>;
+  if (type === "torque" && key === "mass") return <>attached mass m</>;
   if (key === "mass") return <>mass m</>;
   if (type === "electric_field") {
     if (key === "charge1") return <>q<sub>1</sub></>;
@@ -143,6 +144,8 @@ function paramLabel(type: string, key: string) {
 
 function sliderRange(type: string, key: string) {
   if (type === "free_fall" && key === "mass") return { min: 0.1, max: 25, step: 0.1 };
+  if (type === "spring_mass" && key === "mass") return { min: 0.5, max: 5, step: 0.1 };
+  if (type === "standing_waves" && key === "length") return { min: 0.5, max: 3, step: 0.1 };
   return SLIDER_RANGES[key] ?? { min: 0, max: 20, step: 0.1 };
 }
 
@@ -160,8 +163,31 @@ function metricLabel(key: string) {
     terminal_voltage_v: <>V<sub>t</sub></>,
     external_power_w: <>P<sub>ext</sub></>,
     internal_power_w: <>P<sub>int</sub></>,
+    tau: <>τ</>,
+    alpha: <>α</>,
+    I: <>I</>,
+    period_s: <>period</>,
+    max_speed_m_s: <>v<sub>max</sub></>,
+    max_force_n: <>F<sub>max</sub></>,
   } as const;
   return labels[key as keyof typeof labels] ?? key.replace(/m1/g, "m₁").replace(/m2/g, "m₂").replace(/q1/g, "q₁").replace(/q2/g, "q₂").replace(/_/g, " ");
+}
+
+function distanceLabel(value: number, digits = 1) {
+  if (!Number.isFinite(value)) return "--";
+  return Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(digits)} km` : `${value.toFixed(digits)} m`;
+}
+
+function paramValueLabel(type: string, key: string, value: number) {
+  if (type === "free_fall" && key === "height") return distanceLabel(value, value >= 1000 ? 1 : 0);
+  if (key === "mass" || key === "mass1" || key === "mass2") return `${value.toFixed(1)} kg`;
+  if (key === "voltage") return `${value.toFixed(1)} V`;
+  if (key === "resistance" || key === "internal_resistance") return `${value.toFixed(1)} Ω`;
+  if (key === "tension") return `${value.toFixed(0)} N`;
+  if (key === "linear_density") return `${value.toFixed(3)} kg/m`;
+  if (key === "length") return `${value.toFixed(1)} m`;
+  if (key === "harmonic") return `${Math.round(value)}`;
+  return value.toFixed(1);
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -373,6 +399,58 @@ function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): Simula
   };
 }
 
+function normalizeFreeFallConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  if (config.type !== "free_fall") return config;
+  const normalized = prompt.toLowerCase().replace(/,/g, "");
+  const heightMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(km|kilometer|kilometers|m|meter|meters)\b/);
+  if (!heightMatch) return config;
+  const value = Number(heightMatch[1]);
+  const unit = heightMatch[2];
+  const height = unit.startsWith("k") ? value * 1000 : value;
+  return {
+    ...config,
+    params: { ...config.params, height: clamp(height, 1, 5000) },
+  };
+}
+
+function numberAfter(prompt: string, patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+function shouldUsePromptValue(current: number | undefined, promptValue: number | null, defaultValue: number) {
+  return promptValue !== null && (!hasNumber(current) || Math.abs(current - defaultValue) < 0.001);
+}
+
+function normalizeTorqueConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  if (config.type !== "torque") return config;
+  const lower = prompt.toLowerCase();
+  const force = numberAfter(lower, [/\bforce\s*(?:of|=|is)?\s*([0-9]+(?:\.[0-9]+)?)\s*n\b/, /\b([0-9]+(?:\.[0-9]+)?)\s*n\b/]);
+  const armLength = numberAfter(lower, [/\b(?:arm\s*)?length\s*(?:of|=|is)?\s*([0-9]+(?:\.[0-9]+)?)/, /\b([0-9]+(?:\.[0-9]+)?)\s*m(?:eter|eters)?\b/]);
+  const mass = numberAfter(lower, [/\bmass\s*(?:of|=|is)?\s*([0-9]+(?:\.[0-9]+)?)\s*kg\b/, /\b([0-9]+(?:\.[0-9]+)?)\s*kg\b/]);
+  const params = { ...config.params };
+  if (force !== null && shouldUsePromptValue(params.force, force, 20)) params.force = clamp(force, 1, 100);
+  if (armLength !== null && shouldUsePromptValue(params.arm_length, armLength, 1.5)) params.arm_length = clamp(armLength, 0.1, 5);
+  if (mass !== null && shouldUsePromptValue(params.mass, mass, 2)) params.mass = clamp(mass, 0.5, 10);
+  return { ...config, params };
+}
+
+function normalizeSpringMassConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  if (config.type !== "spring_mass") return config;
+  const lower = prompt.toLowerCase();
+  const springConstant = numberAfter(lower, [/\bspring\s+constant\s*(?:of|=|is)?\s*([0-9]+(?:\.[0-9]+)?)/, /\bk\s*(?:=|is)?\s*([0-9]+(?:\.[0-9]+)?)/]);
+  const mass = numberAfter(lower, [/\bmass\s*(?:of|=|is)?\s*([0-9]+(?:\.[0-9]+)?)\s*kg\b/, /\b([0-9]+(?:\.[0-9]+)?)\s*kg\b/]);
+  const amplitude = numberAfter(lower, [/\b(?:displacement|amplitude)\s*(?:of|=|is)?\s*([0-9]+(?:\.[0-9]+)?)/]);
+  const params = { ...config.params };
+  if (springConstant !== null && shouldUsePromptValue(params.spring_constant, springConstant, 20)) params.spring_constant = clamp(springConstant, 1, 100);
+  if (mass !== null && shouldUsePromptValue(params.mass, mass, 1)) params.mass = clamp(mass, 0.5, 10);
+  if (amplitude !== null && shouldUsePromptValue(params.amplitude, amplitude, 0.5)) params.amplitude = clamp(amplitude, 0.05, 1.5);
+  return { ...config, params };
+}
+
 function displayExplanation(config: SimulationConfig, outcome: LaunchOutcome | null, fallback: string) {
   if (config.type === "atwood_table") {
     const m1 = config.params.mass1;
@@ -476,7 +554,16 @@ export default function SimulationClient() {
         return;
       }
 
-      const nextConfig = validateSimulationConfig(normalizeElectricFieldConfig(normalizeAtwoodConfig(normalizeCollisionConfig(parsed, prompt), prompt), prompt), prompt).config;
+      const nextConfig = validateSimulationConfig(
+        normalizeSpringMassConfig(
+          normalizeTorqueConfig(
+            normalizeFreeFallConfig(normalizeElectricFieldConfig(normalizeAtwoodConfig(normalizeCollisionConfig(parsed, prompt), prompt), prompt), prompt),
+            prompt
+          ),
+          prompt
+        ),
+        prompt
+      ).config;
       setConfig(nextConfig);
       setOutcome(null);
       saveHistory(prompt, nextConfig);
@@ -606,7 +693,7 @@ export default function SimulationClient() {
                     <label key={key} className="block">
                       <span className="flex justify-between gap-3 text-sm font-semibold">
                         <span>{paramLabel(activeConfig.type, key)}</span>
-                        <span>{Number(value).toFixed(1)}{key === "mass" || key === "mass1" || key === "mass2" ? " kg" : ""}</span>
+                        <span>{paramValueLabel(activeConfig.type, key, Number(value))}</span>
                       </span>
                       <input
                         className="mt-2 w-full"

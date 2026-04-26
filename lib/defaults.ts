@@ -65,7 +65,7 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
   },
   ohm_law: {
     type: "ohm_law",
-    params: { voltage: 12, resistance: 40, internal_resistance: 2 },
+    params: { voltage: 12, resistance: 40, internal_resistance: 0 },
     world: { gravity: 9.8, friction: 0 },
     explanationGoal: "Explain how voltage, resistance, and internal resistance determine current and power in a circuit.",
   },

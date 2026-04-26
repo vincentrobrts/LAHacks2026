@@ -10,7 +10,7 @@ import {
 function metrics(config: SimulationConfig) {
   const emf = clamp(config.params.voltage ?? 12, 1, 24);
   const resistance = clamp(config.params.resistance ?? 40, 1, 100);
-  const internalResistance = clamp(config.params.internal_resistance ?? 2, 0, 10);
+  const internalResistance = clamp(config.params.internal_resistance ?? 0, 0, 10);
   const current = emf / (resistance + internalResistance);
   const terminalVoltage = current * resistance;
   const externalPower = current * current * resistance;

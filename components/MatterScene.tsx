@@ -61,6 +61,11 @@ function fmt(value: number | null, digits = 2) {
   return value === null || Number.isNaN(value) ? "--" : value.toFixed(digits);
 }
 
+function distanceLabel(value: number, digits = 1) {
+  if (!Number.isFinite(value)) return "--";
+  return Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(digits)} km` : `${value.toFixed(digits)} m`;
+}
+
 function arrowPoints(x: number, y: number, dx: number, dy: number) {
   return { x1: x, y1: y, x2: x + dx, y2: y + dy };
 }
@@ -891,8 +896,8 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
           {metrics.range > 0 && (
             <>
               <line x1={landingPoint.x} y1={GY - 28} x2={landingPoint.x} y2={GY + 12} stroke="#f2c14e" strokeWidth="3" />
-              <line x1={launchPoint.x} y1={GY + 16} x2={landingPoint.x} y2={GY + 16} stroke="#f2c14e" strokeWidth="3" markerEnd="url(#pm-arr)" />
-              <text x={Math.max(LX + 8, landingPoint.x - 74)} y={GY + 36} fill="#172033" fontSize="13" fontWeight="700">R = {fmt(metrics.range)} m</text>
+              <line x1={launchPoint.x} y1={GY + 18} x2={landingPoint.x} y2={GY + 18} stroke="#f2c14e" strokeWidth="3" markerEnd="url(#pm-arr)" />
+              <text x={(launchPoint.x + landingPoint.x) / 2} y={GY + 42} textAnchor="middle" fill="#172033" fontSize="13" fontWeight="700">R = {fmt(metrics.range)} m</text>
             </>
           )}
           {guidedStep !== 2 && (
@@ -909,9 +914,13 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
             </>
           )}
           <path d={`M ${launchPoint.x + 46} ${launchPoint.y} A 46 46 0 0 0 ${launchPoint.x + 46 * Math.cos(theta_r)} ${launchPoint.y - 46 * Math.sin(theta_r)}`} fill="none" stroke="#f2c14e" strokeWidth="4" />
-          <text x={launchPoint.x + 52} y={launchPoint.y - 8} fill="#172033" fontSize="13" fontWeight="700">θ={metrics.angle}°</text>
+          <text x={launchPoint.x + 58} y={launchPoint.y - 22} fill="#172033" fontSize="13" fontWeight="700">θ={metrics.angle}°</text>
           <text x={launchPoint.x - 8} y={launchPoint.y - 42} textAnchor="end" fill="#475569" fontSize="12" fontWeight="700">h₀ = {fmt(metrics.h0, 1)} m</text>
-          <text x={WIDTH - 24} y={GY + 36} textAnchor="end" fill="#64748b" fontSize="12" fontWeight="700">field width = {fmt(visibleRange, 0)} m</text>
+          <g>
+            <rect x={WIDTH - 188} y="18" width="164" height="30" rx="6" fill="white" opacity="0.86" />
+            <text x={WIDTH - 34} y="38" textAnchor="end" fill="#64748b" fontSize="12" fontWeight="700">field width = {fmt(visibleRange, 0)} m</text>
+          </g>
+          <text x={WIDTH / 2} y={Math.max(76, Math.min(GY - 92, toSVG(metrics.range * 0.52, metrics.peakHeight * 0.92).y))} textAnchor="middle" fill="#216869" fontSize="13" fontWeight="800">trajectory</text>
         </svg>
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
@@ -1272,14 +1281,17 @@ function CollisionScene({ config, onOutcome }: Props) {
 // ── Free Fall ─────────────────────────────────────────────────────────────────
 
 function freeFallMetrics(config: SimulationConfig) {
-  const heightPx = clamp(config.params.height ?? 200, 50, 400);
+  const h = clamp(config.params.height ?? 200, 1, 5000);
   const mass = clamp(config.params.mass ?? 1, 0.1, 25);
-  const k = clamp(config.params.air_resistance ?? 0, 0, 0.1);
+  const k = clamp(config.params.air_resistance ?? 0, 0, 1);
   const gravity = clamp(config.world.gravity, 1, 20);
-  const h = heightPx / 10;
-  const tof = k === 0 ? Math.sqrt((2 * h) / gravity) : Math.sqrt((2 * h) / gravity) * (1 + (k * h) / 3);
-  const vImpact = k === 0 ? gravity * tof : Math.sqrt(2 * gravity * h) * (1 - (k * h) / 4);
-  return { heightPx, h, mass, k, gravity, tof, vImpact };
+  const vacuumTof = Math.sqrt((2 * h) / gravity);
+  const vacuumImpact = Math.sqrt(2 * gravity * h);
+  const dragFactor = clamp((k * h) / 1000, 0, 0.85);
+  const tof = vacuumTof * (1 + dragFactor);
+  const vImpact = vacuumImpact * (1 - 0.55 * dragFactor);
+  const compressed = h > 400;
+  return { h, mass, k, gravity, tof, vImpact, compressed };
 }
 
 function FreeFallScene({ config, onOutcome }: Props) {
@@ -1293,7 +1305,7 @@ function FreeFallScene({ config, onOutcome }: Props) {
   const topY = 60; const groundY = 440; const cx = WIDTH / 2;
   const ballR = clamp(12 + Math.sqrt(metrics.mass) * 7, 15, 48);
   const ballY = (r: number) => topY + r + progress * (groundY - topY - 2 * r);
-  const speedNow = metrics.gravity * (progress * metrics.tof);
+  const speedNow = metrics.k === 0 ? metrics.gravity * (progress * metrics.tof) : metrics.vImpact * ((1 - Math.exp(-3 * progress)) / (1 - Math.exp(-3)));
   const arrowLen = clamp(speedNow * 6, 0, 70);
 
   useEffect(() => {
@@ -1313,7 +1325,8 @@ function FreeFallScene({ config, onOutcome }: Props) {
       const t = p * metrics.tof;
       const distanceProgress = metrics.k === 0 ? p * p : p ** 1.75;
       setProgress(distanceProgress);
-      setCurrentSpeed(metrics.gravity * t);
+      const speed = metrics.k === 0 ? metrics.gravity * t : metrics.vImpact * ((1 - Math.exp(-3 * p)) / (1 - Math.exp(-3)));
+      setCurrentSpeed(speed);
       if (p < 1) { frameRef.current = requestAnimationFrame(tick); return; }
       setRunning(false);
       onOutcome({ launched: true, success: true, metrics: { time_s: metrics.tof, impact_speed_m_s: metrics.vImpact } });
@@ -1329,7 +1342,7 @@ function FreeFallScene({ config, onOutcome }: Props) {
   const goToStep = (s: number) => { const n = clamp(s, 1, 4); setGuidedStep(n); if (n === 4) run(); };
 
   const stepCopy = [
-    { title: "Setup", equation: `h = ${fmt(metrics.h, 1)} m,  m = ${fmt(metrics.mass, 1)} kg,  g = ${fmt(metrics.gravity, 1)} m/s²`, notice: "In free fall (no air resistance), all objects fall at the same rate regardless of mass. Galileo's insight.", diagram: "The ball starts at height h. The dashed line shows the drop distance to the ground." },
+    { title: "Setup", equation: `h = ${distanceLabel(metrics.h)},  m = ${fmt(metrics.mass, 1)} kg,  g = ${fmt(metrics.gravity, 1)} m/s²`, notice: "In free fall (no air resistance), all objects fall at the same rate regardless of mass. Galileo's insight.", diagram: "The ball starts at height h. The dashed line shows the drop distance to the ground." },
     { title: "Forces", equation: metrics.k === 0 ? "Only gravity: F = mg (net force, no drag)" : `F_net = mg − kv  (drag coefficient k = ${fmt(metrics.k, 3)})`, notice: metrics.k === 0 ? "Without air resistance, acceleration is constant at g throughout the fall." : "Air resistance grows with speed, gradually reducing the net downward force.", diagram: "The red arrow shows the net downward force. It grows if there is air resistance as speed increases." },
     { title: "Kinematics", equation: "v² = 2gh  →  impact speed = √(2gh)", notice: `Using energy: mgh = ½mv² cancels mass, giving v = ${fmt(metrics.vImpact, 2)} m/s regardless of m (vacuum).`, diagram: "The height label shows h in meters. The impact speed comes purely from the drop height and gravity." },
     { title: "Free Fall", equation: `t = √(2h/g) = ${fmt(metrics.tof, 2)} s,  impact speed = ${fmt(metrics.vImpact, 2)} m/s`, notice: "The velocity arrow grows linearly with time in vacuum. With drag it grows slower as air resistance builds up.", diagram: "Watch the red arrow lengthen as the ball accelerates downward." },
@@ -1349,7 +1362,13 @@ function FreeFallScene({ config, onOutcome }: Props) {
           <line x1={cx + 160} y1={topY + 2 * ballR} x2={cx + 160} y2={groundY} stroke="#94a3b8" strokeWidth="2" strokeDasharray="6 4" />
           <line x1={cx + 148} y1={topY + 2 * ballR} x2={cx + 172} y2={topY + 2 * ballR} stroke="#94a3b8" strokeWidth="2" />
           <line x1={cx + 148} y1={groundY} x2={cx + 172} y2={groundY} stroke="#94a3b8" strokeWidth="2" />
-          <text x={cx + 176} y={(topY + groundY) / 2 + 5} fill="#475569" fontSize="14" fontWeight="700">h = {fmt(metrics.h, 1)} m</text>
+          <text x={cx + 176} y={(topY + groundY) / 2 + 5} fill="#475569" fontSize="14" fontWeight="700">h = {distanceLabel(metrics.h)}</text>
+          {metrics.compressed ? (
+            <g>
+              <rect x="24" y="20" width="360" height="32" rx="6" fill="white" opacity="0.88" />
+              <text x="36" y="41" fill="#475569" fontSize="13" fontWeight="800">Visual scale compressed: {distanceLabel(metrics.h)} shown in canvas</text>
+            </g>
+          ) : null}
           {/* Velocity arrow */}
           {arrowLen > 4 && (
             <g color="#c2410c" stroke="currentColor" markerEnd="url(#ff-arr)" strokeWidth="4">
@@ -1383,7 +1402,7 @@ function FreeFallScene({ config, onOutcome }: Props) {
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
           <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
-            <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">h = {fmt(metrics.h, 1)} m<br />m = {fmt(metrics.mass, 1)} kg<br />g = {fmt(metrics.gravity, 1)} m/s²<br />k = {fmt(metrics.k, 3)}</p></div>
+            <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">h = {distanceLabel(metrics.h)}<br />m = {fmt(metrics.mass, 1)} kg<br />g = {fmt(metrics.gravity, 1)} m/s²<br />k = {fmt(metrics.k, 3)}</p></div>
             <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">v² = 2gh<br />t = √(2h/g)<br />v = gt  (vacuum)<br />F = mg − kv (drag)</p></div>
             <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">t = {fmt(metrics.tof, 2)} s<br />impact speed = {fmt(metrics.vImpact, 2)} m/s</p></div>
           </div>
@@ -1428,7 +1447,7 @@ function SpringMassScene({ config, onOutcome }: Props) {
   const SCALE = 120; // px per meter
   const massCX = eqX + disp * SCALE;
   const massLeft = massCX - massW / 2;
-  const springRight = massLeft;
+  const springRight = massLeft + 2;
   const springCoils = 8;
   const springPath = (() => {
     const x1 = wallX + 14; const x2 = springRight; const cy = massY + massH / 2;
@@ -1472,8 +1491,8 @@ function SpringMassScene({ config, onOutcome }: Props) {
   const stepCopy = [
     { title: "System Setup", equation: `k = ${fmt(metrics.k, 1)} N/m,  m = ${fmt(metrics.mass, 1)} kg,  A = ${fmt(metrics.amplitude, 2)} m`, notice: "The mass is displaced from equilibrium and released. The spring constant k determines how stiff the spring is.", diagram: "The block sits at amplitude A from the equilibrium (center dashed line). Spring is compressed or stretched." },
     { title: "Restoring Force", equation: "F = −kx  (Hooke's Law)", notice: "The force always points toward equilibrium — negative when displaced right, positive when displaced left. This is the hallmark of SHM.", diagram: "The orange force arrow points toward the center. It is largest at max displacement and zero at equilibrium." },
-    { title: "SHM Equations", equation: `ω = √(k/m) = ${fmt(metrics.omega, 3)} rad/s,  T = 2π/ω = ${fmt(metrics.period, 3)} s`, notice: "Period depends only on k and m, not amplitude. Doubling amplitude does not change how fast it oscillates.", diagram: "The equilibrium dashed line shows x=0. The block will always take the same time for each full cycle." },
-    { title: "Oscillation", equation: `x(t) = A cos(ωt),  v_max = Aω = ${fmt(metrics.maxSpeed, 2)} m/s`, notice: "Max speed occurs at equilibrium (x=0), zero speed at max displacement. Energy converts between KE and PE.", diagram: "Watch the block oscillate. The spring compression/extension mirrors the displacement symmetrically." },
+    { title: "SHM Equations", equation: `ω = √(k/m) = ${fmt(metrics.omega, 3)} rad/s,  T = 2π/ω = ${fmt(metrics.period, 3)} seconds`, notice: "Period depends only on k and m, not amplitude. Doubling amplitude does not change how fast it oscillates.", diagram: "The equilibrium dashed line shows x=0. The block will always take the same time for each full cycle." },
+    { title: "Oscillation", equation: `x(t) = A cos(ωt),  vₘₐₓ = Aω = ${fmt(metrics.maxSpeed, 2)} m/s`, notice: "Max speed occurs at equilibrium, zero speed at max displacement. Energy converts between KE and PE.", diagram: "Watch the block oscillate. The spring compression/extension mirrors the displacement symmetrically." },
   ][guidedStep - 1];
 
   return (
@@ -1494,6 +1513,7 @@ function SpringMassScene({ config, onOutcome }: Props) {
           <text x={eqX + 6} y={massY - 24} fill="#94a3b8" fontSize="12" fontWeight="600">x=0</text>
           {/* Spring */}
           <path d={springPath} fill="none" stroke="#172033" strokeWidth="3" strokeLinecap="round" />
+          <line x1={springRight - 1} y1={massY + massH / 2} x2={massLeft + 5} y2={massY + massH / 2} stroke="#172033" strokeWidth="3" strokeLinecap="round" />
           {/* Force arrow (step 2+) */}
           {guidedStep >= 2 && forceLen > 4 && (
             <g color="#f2c14e" stroke="currentColor" markerEnd="url(#sm-arr)" strokeWidth="5" className="animate-pulse drop-shadow-[0_0_8px_rgba(242,193,78,0.8)]">
@@ -1536,16 +1556,16 @@ function SpringMassScene({ config, onOutcome }: Props) {
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Textbook Model</h3>
           <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
             <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">k = {fmt(metrics.k, 1)} N/m<br />m = {fmt(metrics.mass, 1)} kg<br />A = {fmt(metrics.amplitude, 2)} m</p></div>
-            <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">F = −kx<br />ω = √(k/m)<br />T = 2π/ω<br />x(t) = A cos(ωt)</p></div>
-            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">ω = {fmt(metrics.omega, 3)} rad/s<br />T = {fmt(metrics.period, 3)} s<br />v_max = {fmt(metrics.maxSpeed, 2)} m/s<br />F_max = {fmt(metrics.maxForce, 2)} N</p></div>
+            <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">F = −kx<br />ω = √(k/m)<br />T = 2π/ω<br />x(t) = A cos(ωt)<br />v<sub>max</sub> = Aω<br />F<sub>max</sub> = kA</p></div>
+            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">ω = {fmt(metrics.omega, 3)} rad/s<br />T = {fmt(metrics.period, 3)} seconds<br />v<sub>max</sub> = {fmt(metrics.maxSpeed, 2)} m/s<br />F<sub>max</sub> = {fmt(metrics.maxForce, 2)} N</p></div>
           </div>
         </section>
         <section className="rounded-md border border-slate-200 bg-white p-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Results</h3>
           <div className="mt-3 space-y-2 text-sm">
-            <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Period:</span> {fmt(metrics.period, 3)} s</div>
-            <div className="rounded-md bg-[#216869]/10 p-3 text-[#174f50]"><span className="font-bold">Max speed:</span> {fmt(metrics.maxSpeed, 2)} m/s  (at x=0)</div>
-            <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Max spring force:</span> {fmt(metrics.maxForce, 2)} N</div>
+            <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Period:</span> {fmt(metrics.period, 3)} seconds</div>
+            <div className="rounded-md bg-[#216869]/10 p-3 text-[#174f50]"><span className="font-bold">v<sub>max</sub>:</span> {fmt(metrics.maxSpeed, 2)} m/s  (at x=0)</div>
+            <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">F<sub>max</sub>:</span> {fmt(metrics.maxForce, 2)} N</div>
             <div className="rounded-md bg-slate-100 p-3"><span className="font-bold">Angular frequency ω:</span> {fmt(metrics.omega, 3)} rad/s</div>
           </div>
         </section>
