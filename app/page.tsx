@@ -29,11 +29,11 @@ function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): Simula
   if (config.type !== "atwood_table" && !atwoodLike) return config;
 
   const number = "([0-9]+(?:\\.[0-9]+)?)";
-  const blockMatch = lower.match(new RegExp(\`\${number}\\\\s*kg\\\\s+(?:block|cart|object|mass)\`));
-  const hangingMatch = lower.match(new RegExp(\`hanging\\\\s+\${number}\\\\s*kg\`)) ?? lower.match(new RegExp(\`\${number}\\\\s*kg\\\\s+hanging\`));
-  const distanceMatch = lower.match(/falls?\\\\s+([0-9]+(?:\\.[0-9]+)?)\\\\s*(?:m|meter|meters)\\b/) ?? lower.match(/for\\\\s+([0-9]+(?:\\.[0-9]+)?)\\\\s*(?:m|meter|meters)\\b/);
-  const frictionless = /\\bfrictionless\\b/.test(lower);
-  const frictionMatch = lower.match(/(?:friction|mu|μ)\\\\s*(?:=|is)?\\\\s*([0-9]+(?:\\.[0-9]+)?)/);
+  const blockMatch = lower.match(new RegExp(`${number}\\s*kg\\s+(?:block|cart|object|mass)`));
+  const hangingMatch = lower.match(new RegExp(`hanging\\s+${number}\\s*kg`)) ?? lower.match(new RegExp(`${number}\\s*kg\\s+hanging`));
+  const distanceMatch = lower.match(/falls?\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/) ?? lower.match(/for\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/);
+  const frictionless = /\bfrictionless\b/.test(lower);
+  const frictionMatch = lower.match(/(?:friction|mu|μ)\s*(?:=|is)?\s*([0-9]+(?:\.[0-9]+)?)/);
 
   return {
     ...config,
@@ -45,7 +45,7 @@ function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): Simula
       ...(distanceMatch ? { distance: clamp(Number(distanceMatch[1]), 1, 5) } : {}),
       ...(frictionless ? { friction: 0 } : frictionMatch ? { friction: clamp(Number(frictionMatch[1]), 0, 0.9) } : {}),
     },
-    world: { ...config.world, friction: frictionless ? 0 : config.world.friction ?? 0 },
+    world: { ...config.world, friction: frictionless ? 0 : config.world?.friction ?? 0 },
   };
 }
 
@@ -61,9 +61,7 @@ export default function Home() {
 
   const isCompoundPrompt = (text: string) => {
     const t = text.toLowerCase();
-    // Circuit: needs "series" or multiple labeled resistors (R1/R2) — not just battery+one resistor
-    const multiResistor = (t.match(/\\br\\d+\\b/g) ?? []).length >= 2 || t.includes(" series");
-    // Pulley: compound only when a ramp or spring is also involved — table+pulley is simple atwood_table
+    const multiResistor = (t.match(/\br\d+\b/g) ?? []).length >= 2 || t.includes(" series");
     const compoundPulley = t.includes("pulley") && (t.includes("ramp") || t.includes("spring"));
     return (
       compoundPulley ||
@@ -76,7 +74,7 @@ export default function Home() {
   const start = async (perfect = false) => {
     setMessage("");
     if (!perfect && isCompoundPrompt(prompt)) {
-      router.push(\`/compound?prompt=\${encodeURIComponent(prompt)}\`);
+      router.push(`/compound?prompt=${encodeURIComponent(prompt)}`);
       return;
     }
     const parsed = perfect ? DEMO_SHOT : prompt === ATWOOD_PROMPT ? DEFAULT_CONFIGS.atwood_table : await parseWithAgentverse(prompt);
@@ -89,7 +87,7 @@ export default function Home() {
       timestamp: new Date().toISOString(),
     };
     localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...history].slice(0, 8)));
-    router.push(\`/sim?state=\${encodeSimulation(config, nextPrompt)}\`);
+    router.push(`/sim?state=${encodeSimulation(config, nextPrompt)}`);
   };
 
   return (
@@ -178,7 +176,10 @@ export default function Home() {
             <div className="mt-3 space-y-2">
               {history.length === 0 ? <p className="text-sm text-slate-500">No local history yet.</p> : null}
               {history.slice(0, 3).map((item) => (
-                <button key={item.id} onClick={() => router.push(\`/sim?state=\${encodeSimulation(item.config, item.prompt)}\`)} className="block w-full rounded-md bg-white p-3 text-left text-sm font-semibold text-slate-700 hover:text-[#216869]">
+                <button 
+                  key={item.id} 
+                  onClick={() => router.push(`/sim?state=${encodeSimulation(item.config, item.prompt)}`)} 
+                  className="block w-full rounded-md bg-white p-3 text-left text-sm font-semibold text-slate-700 hover:text-[#216869]">
                   {item.prompt}
                 </button>
               ))}
