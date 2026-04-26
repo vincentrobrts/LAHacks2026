@@ -113,6 +113,39 @@ types/
 
 ---
 
+## Claude Desktop MCP Server
+
+Intuify ships an MCP server so Claude Desktop can generate physics simulations inline — animated HTML + a link to the interactive web app.
+
+**Setup:**
+
+```bash
+cd agent
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Add to your Claude Desktop `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "intuify": {
+      "command": "/absolute/path/to/agent/venv/bin/python",
+      "args": ["/absolute/path/to/agent/mcp_server.py"],
+      "env": {
+        "GROQ_API_KEY": "your_groq_api_key",
+        "WEB_APP_URL": "http://localhost:3000"
+      }
+    }
+  }
+}
+```
+
+Then ask Claude: *"Simulate a 5 kg block sliding down a 30° ramp with friction 0.2"* — it will render an animation inline and give you a link to the full interactive app.
+
+---
+
 ## Team
 
 Yifan Fang — AI + backend  
