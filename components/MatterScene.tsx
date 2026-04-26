@@ -141,10 +141,10 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
   const normalLen = forceArrowLength(metrics.normal, maxInclinedForce);
   const frictionLen = forceArrowLength(metrics.frictionForce, maxInclinedForce);
   const componentLen = forceArrowLength(metrics.gravityComponent, maxInclinedForce);
-  const gravityArrow = arrowPoints(rawBlockCenter.x - 6, rawBlockCenter.y - 4, 0, gravityLen);
-  const normalArrow = arrowPoints(rawBlockCenter.x + normalDir.x * 4, rawBlockCenter.y + normalDir.y * 4, normalDir.x * normalLen, normalDir.y * normalLen);
+  const gravityArrow = arrowPoints(rawBlockCenter.x, rawBlockCenter.y, 0, gravityLen);
+  const normalArrow = arrowPoints(rawBlockCenter.x, rawBlockCenter.y, normalDir.x * normalLen, normalDir.y * normalLen);
   const frictionArrow = arrowPoints(rawBlockCenter.x - normalDir.x * 34, rawBlockCenter.y - normalDir.y * 34, -downRamp.x * frictionLen, -downRamp.y * frictionLen);
-  const componentArrow = arrowPoints(rawBlockCenter.x + normalDir.x * 42, rawBlockCenter.y + normalDir.y * 42, downRamp.x * componentLen, downRamp.y * componentLen);
+  const componentArrow = arrowPoints(rawBlockCenter.x, rawBlockCenter.y, downRamp.x * componentLen, downRamp.y * componentLen);
   const rampPoints = [rawTop, rawBottom, { x: rawTop.x, y: rawBottom.y }];
   const rampBounds = rampPoints.reduce(
     (box, point) => ({
