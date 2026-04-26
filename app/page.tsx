@@ -78,6 +78,10 @@ export default function Home() {
       return;
     }
     const parsed = perfect ? DEMO_SHOT : prompt === ATWOOD_PROMPT ? DEFAULT_CONFIGS.atwood_table : await parseWithAgentverse(prompt);
+    if (!parsed) {
+      setMessage("Intuify could not confidently build a visualization from that prompt yet. Try one of the examples.");
+      return;
+    }
     const config = perfect || prompt === ATWOOD_PROMPT ? parsed : normalizeAtwoodConfig(parsed, prompt);
     const nextPrompt = perfect ? DEFAULT_PROMPT : prompt;
     const item: SimulationHistoryItem = {

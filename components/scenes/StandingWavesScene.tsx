@@ -46,17 +46,18 @@ const STEPS = [
   },
 ];
 
-const STRING_X0 = 80;
-const STRING_X1 = SCENE_W - 80;
+const STRING_CENTER_X = SCENE_W / 2;
+const MIN_STRING_PX = 360;
+const MAX_STRING_PX = SCENE_W - 160;
 const STRING_Y = SCENE_H / 2 + 20;
 const AMP_PX = 80;
 
-function buildWavePath(n: number, phase: number): string {
+function buildWavePath(n: number, phase: number, x0: number, x1: number): string {
   const nPoints = 300;
   const pts: string[] = [];
   for (let i = 0; i <= nPoints; i++) {
     const t = i / nPoints;
-    const x = STRING_X0 + t * (STRING_X1 - STRING_X0);
+    const x = x0 + t * (x1 - x0);
     const y = STRING_Y - AMP_PX * Math.sin(n * Math.PI * t) * Math.cos(phase);
     pts.push(`${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`);
   }
@@ -71,7 +72,11 @@ export default function StandingWavesScene({ config, onOutcome }: SceneProps) {
   const startRef = useRef<number | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  const omegaVis = clamp(m.omega, 1, 20);
+  const stringPx = MIN_STRING_PX + ((m.L - 0.5) / 2.5) * (MAX_STRING_PX - MIN_STRING_PX);
+  const stringX0 = STRING_CENTER_X - stringPx / 2;
+  const stringX1 = STRING_CENTER_X + stringPx / 2;
+  const omegaVis = clamp(2 + Math.log10(Math.max(1, m.freq)) * 4.5, 2, 18);
+  const frequencyCompressed = m.omega > omegaVis;
 
   useEffect(() => {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -109,18 +114,18 @@ export default function StandingWavesScene({ config, onOutcome }: SceneProps) {
     if (s >= 2 && !running) run();
   };
 
-  const wavePath = buildWavePath(m.n, phase);
+  const wavePath = buildWavePath(m.n, phase, stringX0, stringX1);
 
   // Node positions
   const nodes = Array.from({ length: m.n + 1 }, (_, i) => {
     const t = i / m.n;
-    return STRING_X0 + t * (STRING_X1 - STRING_X0);
+    return stringX0 + t * (stringX1 - stringX0);
   });
 
   // Anti-node positions
   const antinodes = Array.from({ length: m.n }, (_, i) => {
     const t = (i + 0.5) / m.n;
-    return STRING_X0 + t * (STRING_X1 - STRING_X0);
+    return stringX0 + t * (stringX1 - stringX0);
   });
 
   return (
@@ -130,16 +135,16 @@ export default function StandingWavesScene({ config, onOutcome }: SceneProps) {
           <rect width={SCENE_W} height={SCENE_H} fill="#eef5f1" />
 
           {/* Equilibrium line */}
-          <line x1={STRING_X0} y1={STRING_Y} x2={STRING_X1} y2={STRING_Y} stroke="#172033" strokeWidth="1" strokeDasharray="6 4" opacity="0.3" />
+          <line x1={stringX0} y1={STRING_Y} x2={stringX1} y2={STRING_Y} stroke="#172033" strokeWidth="1" strokeDasharray="6 4" opacity="0.3" />
 
           {/* Wave */}
           <path d={wavePath} fill="none" stroke="#216869" strokeWidth="4" strokeLinecap="round" />
           {/* Phase-shifted wave for envelope */}
-          <path d={buildWavePath(m.n, phase + Math.PI)} fill="none" stroke="#216869" strokeWidth="2" strokeDasharray="4 4" opacity="0.3" />
+          <path d={buildWavePath(m.n, phase + Math.PI, stringX0, stringX1)} fill="none" stroke="#216869" strokeWidth="2" strokeDasharray="4 4" opacity="0.3" />
 
           {/* Fixed ends */}
-          <rect x={STRING_X0 - 10} y={STRING_Y - 28} width={10} height={56} fill="#172033" rx="2" />
-          <rect x={STRING_X1} y={STRING_Y - 28} width={10} height={56} fill="#172033" rx="2" />
+          <rect x={stringX0 - 10} y={STRING_Y - 28} width={10} height={56} fill="#172033" rx="2" />
+          <rect x={stringX1} y={STRING_Y - 28} width={10} height={56} fill="#172033" rx="2" />
 
           {/* Nodes (step 4) */}
           {guidedStep >= 4 && nodes.map((nx, i) => (
@@ -161,6 +166,12 @@ export default function StandingWavesScene({ config, onOutcome }: SceneProps) {
           <text x={24} y={36} fill="#172033" fontSize="15" fontWeight="700">v = {fmt(m.waveSpeed, 1)} m/s</text>
           <text x={24} y={60} fill="#172033" fontSize="15" fontWeight="700">λ = {fmt(m.wavelength, 3)} m</text>
           <text x={24} y={84} fill="#172033" fontSize="15" fontWeight="700">L = {fmt(m.L, 1)} m</text>
+          {frequencyCompressed ? (
+            <g>
+              <rect x={SCENE_W - 264} y="20" width="240" height="32" rx="6" fill="white" opacity="0.88" />
+              <text x={SCENE_W - 36} y="41" textAnchor="end" fill="#475569" fontSize="12" fontWeight="800">Animation speed compressed</text>
+            </g>
+          ) : null}
         </svg>
       </div>
       <SceneActions running={running} onRun={run} onReset={reset} runLabel="Vibrate" runningLabel="Oscillating…" />
