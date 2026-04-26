@@ -17,7 +17,7 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
   },
   pendulum: {
     type: "pendulum",
-    params: { length: 150, initial_angle: 45, mass: 1 },
+    params: { length: 3, initial_angle: 45, mass: 1 },
     world: { gravity: 9.8, friction: 0 },
     explanationGoal: "Explain how pendulum length and initial angle affect the period and maximum speed.",
   },
@@ -29,7 +29,7 @@ export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
   },
   free_fall: {
     type: "free_fall",
-    params: { height: 200, mass: 1, air_resistance: 0 },
+    params: { height: 20, mass: 1, air_resistance: 0 },
     world: { gravity: 9.8, friction: 0 },
     explanationGoal: "Explain how gravity and air resistance affect the time and speed of the falling object.",
   },

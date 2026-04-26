@@ -5,14 +5,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MatterScene from "@/components/MatterScene";
-import { DEFAULT_PROMPT, DEFAULT_SIMULATION, DEMO_SHOT } from "@/lib/defaults";
+import { DEFAULT_CONFIGS, DEFAULT_PROMPT, DEFAULT_SIMULATION, DEMO_SHOT } from "@/lib/defaults";
 import { buildExplanation } from "@/lib/explanation";
 import { parseWithAgentverse } from "@/lib/agentverse";
-import { parserJson } from "@/lib/parser";
+import { normalizePromptText, parsePhysicsPrompt, parserJson } from "@/lib/parser";
 import { decodeSimulation, encodeSimulation } from "@/lib/share";
-import type { LaunchOutcome, SimulationConfig, SimulationHistoryItem } from "@/types/simulation";
+import type { LaunchOutcome, SimulationConfig, SimulationHistoryItem, SimulationType } from "@/types/simulation";
 
 const HISTORY_KEY = "physics-visualizer-history";
+const CONFIDENCE_THRESHOLD = 0.6;
+const LOW_CONFIDENCE_MESSAGE = "Could not confidently determine the physics system. Try adding more detail (e.g. forces, motion, or setup).";
 const PROMPT_HELP_MESSAGE = "Intuify couldn’t confidently build a visualization from that prompt yet. Try one of the examples below.";
 const EXAMPLE_PROMPTS = [
   "A 5 kg block slides down a 30 degree incline with μₖ = 0.2 for 3 meters.",
@@ -198,8 +200,64 @@ function hasNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function unique(values: string[]) {
+  return Array.from(new Set(values));
+}
+
+function hasAny(text: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function countMatches(text: string, pattern: RegExp) {
+  return Array.from(text.matchAll(pattern)).length;
+}
+
+function hasParam(config: SimulationConfig | null, key: string) {
+  return hasNumber(config?.params?.[key]);
+}
+
+function massValueCount(text: string) {
+  return countMatches(text, /\b\d+(?:\.\d+)?\s*kg\b|\bmass\s*(?:of|=|is)?\s*\d+(?:\.\d+)?/g);
+}
+
+function chargeValueCount(text: string) {
+  return countMatches(text, /[+-]?\d+(?:\.\d+)?\s*(?:μ|u|micro)?c\b|\bq\d?\s*(?:=|is|:)?\s*[+-]?\d+(?:\.\d+)?/g);
+}
+
+function hasSpeedValue(text: string) {
+  return /\b\d+(?:\.\d+)?\s*(?:m\/s|meters?\s+per\s+second)\b|\b(?:speed|velocity|initial velocity|v0|v₀)\s*(?:of|=|is)?\s*\d+(?:\.\d+)?/i.test(text);
+}
+
+function hasAngleValue(text: string) {
+  return /\b\d+(?:\.\d+)?\s*(?:degree|degrees|deg|°)\b|\bangle\s*(?:of|=|is)?\s*\d+(?:\.\d+)?/i.test(text);
+}
+
+function hasLengthValue(text: string) {
+  return /\b(?:length|distance|arm|radius|height)\s*(?:of|=|is)?\s*\d+(?:\.\d+)?|\b\d+(?:\.\d+)?\s*(?:m|meter|meters|km|kilometer|kilometers)\b/i.test(text);
+}
+
+function explicitLabType(prompt: string): SimulationType | null {
+  const lower = normalizePromptText(prompt).toLowerCase();
+  const checks: [SimulationType, RegExp[]][] = [
+    ["inclined_plane", [/\binclined?\s+plane\b/, /\bincline\b/, /\bslope\b/, /\bramp\b/]],
+    ["atwood_table", [/\batwood\b/, /\bpulley\s+system\b/, /\bhanging\s+mass\b/]],
+    ["projectile_motion", [/\bprojectile\s+motion\b/, /\bprojectile\b/]],
+    ["free_fall", [/\bfree\s+fall\b/]],
+    ["pendulum", [/\bpendulum\b/]],
+    ["circular_motion", [/\bcircular\s+motion\b/]],
+    ["electric_field", [/\belectric\s+field\b/, /\bcoulomb\b/]],
+    ["ohm_law", [/\bohm'?s?\s+law\b/, /\bohms\s+law\b/, /\bcircuit\b/]],
+    ["spring_mass", [/\bspring[-\s]+mass\b/, /\bhooke'?s?\s+law\b/]],
+    ["standing_waves", [/\bstanding\s+waves?\b/]],
+    ["torque", [/\btorque\b/, /\blever\s+arm\b/]],
+    ["bernoulli", [/\bbernoulli\b/, /\bfluid\s+flow\b/]],
+    ["bohr_model", [/\bbohr\s+(?:model|atom)\b/, /\batom\s+model\b/]],
+  ];
+  return checks.find(([, patterns]) => hasAny(lower, patterns))?.[0] ?? null;
+}
+
 function validateSimulationConfig(config: SimulationConfig, prompt: string) {
-  const lower = prompt.toLowerCase();
+  const lower = normalizePromptText(prompt).toLowerCase();
   const next: SimulationConfig = {
     ...config,
     params: { ...config.params },
@@ -249,7 +307,7 @@ function validateSimulationConfig(config: SimulationConfig, prompt: string) {
     case "electric_field": {
       const charges = ["charge1", "charge2", "charge3", "charge4"].filter((key) => hasNumber(next.params[key]));
       if (charges.length < 2) missing.push("at least two charges");
-      if (!hasNumber(next.params.separation)) missing.push("distance between charges");
+      defaultParam("separation", 1, "Assumed charge separation r = 1 m");
       break;
     }
     case "collision_1d":
@@ -257,7 +315,7 @@ function validateSimulationConfig(config: SimulationConfig, prompt: string) {
       requireParam("mass2", "m₂");
       requireParam("v1", "v₁");
       requireParam("v2", "v₂");
-      if (!hasNumber(next.params.restitution)) defaultParam("restitution", /\belastic\b/.test(lower) ? 1 : 0, /\belastic\b/.test(lower) ? "Assumed restitution e = 1 for elastic collision" : "Assumed restitution e = 0");
+      if (!hasNumber(next.params.restitution)) defaultParam("restitution", /\belastic\w*\b/.test(lower) && !/\binelastic\w*\b/.test(lower) ? 1 : 0, /\belastic\w*\b/.test(lower) && !/\binelastic\w*\b/.test(lower) ? "Assumed restitution e = 1 for elastic collision" : "Assumed restitution e = 0");
       break;
     case "free_fall":
       requireParam("height", "height h");
@@ -276,9 +334,14 @@ function validateSimulationConfig(config: SimulationConfig, prompt: string) {
       defaultParam("initial_height", 0, "Assumed initial height h₀ = 0");
       break;
     case "circular_motion":
-      requireParam("mass", "mass m");
       requireParam("radius", "radius r");
       requireParam("speed", "speed v");
+      defaultParam("mass", 1, "Assumed mass m = 1 kg");
+      break;
+    case "spring_mass":
+      requireParam("spring_constant", "spring constant k");
+      requireParam("mass", "mass m");
+      defaultParam("amplitude", 0.5, "Assumed amplitude A = 0.5 m for visualization");
       break;
     case "ohm_law":
       if (!hasNumber(next.params.voltage) && hasNumber(next.params.emf)) next.params.voltage = next.params.emf;
@@ -305,19 +368,29 @@ function isUnsupportedHorizontalForcePrompt(prompt: string) {
 
 function normalizeCollisionConfig(config: SimulationConfig, prompt: string): SimulationConfig {
   if (config.type !== "collision_1d") return config;
-  const lower = prompt.toLowerCase();
-  const mentionsRestitution = /\b(restitution|elastic|inelastic|bouncy|bounce)\b/.test(lower);
-  const restitution = /\binelastic\b/.test(lower)
+  const lower = normalizePromptText(prompt).toLowerCase();
+  const mentionsRestitution = /\b(restitution|elastic\w*|inelastic\w*|bouncy|bounce)\b/.test(lower);
+  const restitution = /\binelastic\w*\b/.test(lower)
     ? 0
-    : /\bperfectly\s+elastic\b|\belastic\b/.test(lower)
+    : /\bperfectly\s+elastic\b|\belastic\w*\b/.test(lower)
     ? 1
     : mentionsRestitution
       ? clamp(config.params.restitution ?? 0, 0, 1)
       : 0;
 
+  const masses = Array.from(lower.matchAll(/\b([0-9]+(?:\.[0-9]+)?)\s*kg\b/g)).map((match) => Number(match[1]));
+  const speeds = Array.from(lower.matchAll(/\b([+-]?[0-9]+(?:\.[0-9]+)?)\s*m\/s\b/g)).map((match) => Number(match[1]));
+  const params = { ...config.params };
+  if (!hasNumber(params.mass1) && masses[0] !== undefined) params.mass1 = clamp(masses[0], 0.5, 10);
+  if (!hasNumber(params.mass2) && masses[1] !== undefined) params.mass2 = clamp(masses[1], 0.5, 10);
+  if (!hasNumber(params.v1) && speeds[0] !== undefined) params.v1 = clamp(speeds[0], -20, 20);
+  if (!hasNumber(params.v2) && (/\bat rest\b/.test(lower) || (masses.length >= 2 && speeds.length === 1))) params.v2 = 0;
+  else if (!hasNumber(params.v2) && speeds[1] !== undefined) params.v2 = clamp(speeds[1], -20, 20);
+  params.restitution = restitution;
+
   return {
     ...config,
-    params: { ...config.params, restitution },
+    params,
     world: { ...config.world, friction: config.world.friction ?? 0 },
   };
 }
@@ -381,6 +454,7 @@ function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): Simula
   const number = "([0-9]+(?:\\.[0-9]+)?)";
   const blockMatch = lower.match(new RegExp(`${number}\\s*kg\\s+(?:block|cart|object|mass)`));
   const hangingMatch = lower.match(new RegExp(`hanging\\s+${number}\\s*kg`)) ?? lower.match(new RegExp(`${number}\\s*kg\\s+hanging`));
+  const masses = Array.from(lower.matchAll(/\b([0-9]+(?:\.[0-9]+)?)\s*kg\b/g)).map((match) => Number(match[1]));
   const distanceMatch = lower.match(/falls?\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/) ?? lower.match(/for\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/);
   const frictionless = /\bfrictionless\b/.test(lower);
   const frictionMatch = lower.match(/(?:friction|mu|μ)\s*(?:=|is)?\s*([0-9]+(?:\.[0-9]+)?)/);
@@ -392,6 +466,8 @@ function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): Simula
       ...config.params,
       ...(blockMatch ? { mass1: clamp(Number(blockMatch[1]), 0.5, 10) } : {}),
       ...(hangingMatch ? { mass2: clamp(Number(hangingMatch[1]), 0.5, 10) } : {}),
+      ...(!blockMatch && masses[0] !== undefined ? { mass1: clamp(masses[0], 0.5, 10) } : {}),
+      ...(!hangingMatch && masses[1] !== undefined ? { mass2: clamp(masses[1], 0.5, 10) } : {}),
       ...(distanceMatch ? { distance: clamp(Number(distanceMatch[1]), 1, 5) } : {}),
       ...(frictionless ? { friction: 0 } : frictionMatch ? { friction: clamp(Number(frictionMatch[1]), 0, 0.9) } : {}),
     },
@@ -411,6 +487,29 @@ function normalizeFreeFallConfig(config: SimulationConfig, prompt: string): Simu
     ...config,
     params: { ...config.params, height: clamp(height, 1, 5000) },
   };
+}
+
+function normalizeProjectileConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  if (config.type !== "projectile_motion") return config;
+  const lower = prompt.toLowerCase();
+  const angle = numberAfter(lower, [/\bangle\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/, /\b(\d+(?:\.\d+)?)\s*(?:degree|degrees|deg|°)\b/]);
+  const speed = numberAfter(lower, [/\b(?:speed|velocity|initial velocity)\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/, /\b(\d+(?:\.\d+)?)\s*(?:m\/s|meters?\s+per\s+second)\b/]);
+  const params = { ...config.params };
+  if (angle !== null && shouldUsePromptValue(params.angle, angle, 38)) params.angle = clamp(angle, 5, 60);
+  if (speed !== null && shouldUsePromptValue(params.speed, speed, 18)) params.speed = clamp(speed, 1, 40);
+  return { ...config, params };
+}
+
+function normalizeOhmConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  if (config.type !== "ohm_law") return config;
+  const lower = prompt.toLowerCase();
+  const voltage = numberAfter(lower, [/\b(?:voltage|battery|emf)\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/, /\b(\d+(?:\.\d+)?)\s*v\b/]);
+  const resistance = numberAfter(lower, [/\b(?:resistance|resistor)\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/, /\b(\d+(?:\.\d+)?)\s*(?:ohm|ohms|Ω)\b/]);
+  const params = { ...config.params };
+  if (voltage !== null && shouldUsePromptValue(params.voltage, voltage, 12)) params.voltage = clamp(voltage, 0, 24);
+  if (resistance !== null && shouldUsePromptValue(params.resistance, resistance, 40)) params.resistance = clamp(resistance, 1, 100);
+  if (!hasNumber(params.internal_resistance)) params.internal_resistance = 0;
+  return { ...config, params };
 }
 
 function numberAfter(prompt: string, patterns: RegExp[]) {
@@ -449,6 +548,290 @@ function normalizeSpringMassConfig(config: SimulationConfig, prompt: string): Si
   if (mass !== null && shouldUsePromptValue(params.mass, mass, 1)) params.mass = clamp(mass, 0.5, 10);
   if (amplitude !== null && shouldUsePromptValue(params.amplitude, amplitude, 0.5)) params.amplitude = clamp(amplitude, 0.05, 1.5);
   return { ...config, params };
+}
+
+function elementAtomicNumber(prompt: string) {
+  const lower = prompt.toLowerCase();
+  const elements: Record<string, number> = {
+    hydrogen: 1,
+    helium: 2,
+    lithium: 3,
+    beryllium: 4,
+    boron: 5,
+    carbon: 6,
+    nitrogen: 7,
+    oxygen: 8,
+    fluorine: 9,
+    neon: 10,
+  };
+  for (const [name, z] of Object.entries(elements)) {
+    if (new RegExp(`\\b${name}\\b`).test(lower)) return z;
+  }
+  const atomic = lower.match(/\batomic\s+number\s*(?:of|=|is)?\s*(\d+)/);
+  return atomic ? clamp(Number(atomic[1]), 1, 10) : null;
+}
+
+function normalizeBohrConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  if (config.type !== "bohr_model") return config;
+  const lower = prompt.toLowerCase();
+  const z = elementAtomicNumber(lower);
+  const ni = numberAfter(lower, [/\bn(?:_|\s*)initial\s*(?:=|is|of)?\s*(\d+)/, /\bfrom\s+(?:n\s*=\s*)?(\d+)/, /\bshell\s*(\d+)/]);
+  const nf = numberAfter(lower, [/\bn(?:_|\s*)final\s*(?:=|is|of)?\s*(\d+)/, /\bto\s+(?:n\s*=\s*)?(\d+)/]);
+  const params = { ...config.params };
+  if (z !== null && shouldUsePromptValue(params.atomic_number, z, 1)) params.atomic_number = z;
+  if (ni !== null && shouldUsePromptValue(params.n_initial, ni, 3)) params.n_initial = clamp(ni, 1, 7);
+  if (nf !== null && shouldUsePromptValue(params.n_final, nf, 1)) params.n_final = clamp(nf, 1, 6);
+  return { ...config, params };
+}
+
+function normalizeBernoulliConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  if (config.type !== "bernoulli") return config;
+  const lower = prompt.toLowerCase();
+  const velocity = numberAfter(lower, [/\b(?:velocity|speed|flow speed)\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)\s*(?:m\/s)?/, /\b(\d+(?:\.\d+)?)\s*m\/s\b/]);
+  const areaRatio = numberAfter(lower, [/\barea\s+ratio\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/, /\ba1\/a2\s*(?:=|is)?\s*(\d+(?:\.\d+)?)/]);
+  const density = numberAfter(lower, [/\bdensity\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/]);
+  const params = { ...config.params };
+  if (velocity !== null && shouldUsePromptValue(params.v1, velocity, 2)) params.v1 = clamp(velocity, 0.5, 10);
+  if (areaRatio !== null && shouldUsePromptValue(params.area_ratio, areaRatio, 3)) params.area_ratio = clamp(areaRatio, 1, 4);
+  if (density !== null && shouldUsePromptValue(params.density, density, 1000)) params.density = clamp(density, 500, 1500);
+  if (!hasNumber(params.density)) params.density = 1000;
+  return { ...config, params };
+}
+
+function mergePromptExtraction(config: SimulationConfig, prompt: string): SimulationConfig {
+  const extracted = parsePhysicsPrompt(prompt);
+  if (!extracted || extracted.type !== config.type) return config;
+  const defaults = DEFAULT_CONFIGS[config.type];
+  const params = { ...config.params };
+  for (const [key, value] of Object.entries(extracted.params)) {
+    const defaultValue = defaults.params[key];
+    if (!hasNumber(params[key]) || (hasNumber(defaultValue) && Math.abs(params[key] - defaultValue) < 0.001)) {
+      params[key] = value;
+    }
+  }
+  return {
+    ...config,
+    params,
+    world: {
+      ...config.world,
+      gravity: hasNumber(config.world.gravity) ? config.world.gravity : extracted.world.gravity,
+      friction: hasNumber(config.world.friction) ? config.world.friction : extracted.world.friction,
+    },
+  };
+}
+
+type ConfidenceResult = {
+  simulationType: SimulationType | null;
+  confidence: number;
+  missingFields: string[];
+  shouldRender: boolean;
+};
+
+function resolveMissingFields(simulationType: SimulationType | null, parsedOutput: SimulationConfig | null, rawPrompt = "") {
+  if (!simulationType || !parsedOutput) return ["physics system"];
+  const lower = normalizePromptText(rawPrompt).toLowerCase();
+  const missing: string[] = [];
+  const requireParam = (key: string, label = key) => {
+    if (!hasParam(parsedOutput, key)) missing.push(label);
+  };
+  const requirePrompt = (condition: boolean, label: string) => {
+    if (!condition) missing.push(label);
+  };
+
+  switch (simulationType) {
+    case "inclined_plane":
+      requirePrompt(hasAngleValue(lower), "angle");
+      requirePrompt(massValueCount(lower) >= 1, "mass");
+      requireParam("angle", "angle");
+      requireParam("mass", "mass");
+      break;
+    case "atwood_table":
+      requirePrompt(massValueCount(lower) >= 2, "two masses");
+      requireParam("mass1", "m1");
+      requireParam("mass2", "m2");
+      break;
+    case "projectile_motion":
+      requirePrompt(hasSpeedValue(lower), "initial velocity");
+      requirePrompt(hasAngleValue(lower), "launch angle");
+      requireParam("speed", "initial velocity");
+      requireParam("angle", "launch angle");
+      break;
+    case "free_fall":
+      requirePrompt(hasAny(lower, [/\bheight\b/, /\b\d+(?:\.\d+)?\s*(?:m|meter|meters|km|kilometer|kilometers)\b/, /\btime\b/, /\bvelocity\b/, /\bspeed\b/]), "height, time, or velocity");
+      requireParam("height", "height");
+      break;
+    case "pendulum":
+      requirePrompt(hasLengthValue(lower), "length");
+      requireParam("length", "length");
+      break;
+    case "circular_motion":
+      requirePrompt(hasAny(lower, [/\bradius\b/, /\borbit\s+radius\b/, /\b\d+(?:\.\d+)?\s*m\b/]), "radius");
+      requirePrompt(hasSpeedValue(lower), "velocity");
+      requireParam("radius", "radius");
+      requireParam("speed", "velocity");
+      break;
+    case "electric_field":
+      requirePrompt(chargeValueCount(lower) >= 2 || /\bcharges?\s+[+-]?\d+(?:\.\d+)?\s+(?:and\s+)?[+-]?\d+(?:\.\d+)?/.test(lower), "at least two charges");
+      if (["charge1", "charge2", "charge3", "charge4"].filter((key) => hasParam(parsedOutput, key)).length < 2) missing.push("at least two charges");
+      break;
+    case "ohm_law":
+      requirePrompt(countOhmValues(lower) >= 2, "at least two of voltage, current, resistance");
+      requirePrompt(hasAny(lower, [/\b(?:voltage|volt|volts|battery|emf)\b|\b\d+(?:\.\d+)?\s*v\b/]), "voltage");
+      requirePrompt(hasAny(lower, [/\b(?:resistance|resistor|ohm|ohms|Ω)\b/]), "resistance");
+      requireParam("voltage", "voltage");
+      requireParam("resistance", "resistance");
+      break;
+    case "spring_mass":
+      requirePrompt(hasAny(lower, [/\bspring\s+constant\b/, /\bk\s*=/]), "spring constant");
+      requirePrompt(massValueCount(lower) >= 1, "mass");
+      requireParam("spring_constant", "spring constant");
+      requireParam("mass", "mass");
+      break;
+    case "standing_waves":
+      requirePrompt(hasAny(lower, [/\blength\b/, /\b\d+(?:\.\d+)?\s*(?:m|meter|meters)\b/]), "length");
+      requireParam("length", "length");
+      requireParam("harmonic", "harmonic");
+      break;
+    case "torque":
+      requirePrompt(hasAny(lower, [/\bforce\b/, /\b\d+(?:\.\d+)?\s*n\b/]), "force");
+      requirePrompt(hasAny(lower, [/\bdistance\b/, /\blength\b/, /\blever arm\b/, /\barm\b/]), "distance or lever arm");
+      requireParam("force", "force");
+      requireParam("arm_length", "distance or lever arm");
+      break;
+    case "bohr_model":
+      requirePrompt(hasAny(lower, [/\batomic\s+number\b/, /\belectron\b/, /\bshell\b/, /\bn\s*=/]) || elementAtomicNumber(lower) !== null, "element, electron count, or shell level");
+      requireParam("atomic_number", "element or atomic number");
+      break;
+    case "bernoulli":
+      requirePrompt(hasSpeedValue(lower), "velocity");
+      requirePrompt(hasAny(lower, [/\bpressure\b/, /\bheight\b/]), "pressure or height");
+      requireParam("v1", "velocity");
+      break;
+    case "collision_1d":
+      requirePrompt(massValueCount(lower) >= 2, "two masses");
+      requirePrompt(countMatches(lower, /\b(?:velocity|speed|v1|v2)\b|\b-?\d+(?:\.\d+)?\s*m\/s\b|\bat rest\b/g) >= 2, "two velocities");
+      requireParam("mass1", "m1");
+      requireParam("mass2", "m2");
+      requireParam("v1", "v1");
+      requireParam("v2", "v2");
+      break;
+    default:
+      Object.entries(parsedOutput.params).forEach(([key, value]) => {
+        if (!hasNumber(value)) missing.push(key);
+      });
+  }
+  return unique(missing);
+}
+
+function countOhmValues(prompt: string) {
+  let count = 0;
+  if (/\b(?:voltage|volt|volts|battery|emf)\b|\b\d+(?:\.\d+)?\s*v\b/.test(prompt)) count += 1;
+  if (/\b(?:current|amp|amps|ampere|amperes)\b|\b\d+(?:\.\d+)?\s*a\b/.test(prompt)) count += 1;
+  if (/\b(?:resistance|resistor|ohm|ohms|Ω)\b/.test(prompt)) count += 1;
+  return count;
+}
+
+function confidenceForType(type: SimulationType, config: SimulationConfig | null, rawPrompt: string): ConfidenceResult {
+  const lower = normalizePromptText(rawPrompt).toLowerCase();
+  const missing: string[] = [];
+  const addMissing = (condition: boolean, label: string) => {
+    if (!condition) missing.push(label);
+  };
+  const keywordChecks: Record<SimulationType, boolean> = {
+    inclined_plane: hasAny(lower, [/\bincline(d)?\b/, /\bslope\b/, /\bramp\b/, /\bplane\b/, /\bangle\b/]) && hasAny(lower, [/\bmass\b/, /\bobject\b/, /\bblock\b/, /\bkg\b/]),
+    atwood_table: hasAny(lower, [/\bpulley\b/, /\bhanging\s+mass\b/, /\btwo\s+masses\b/, /\bconnected\b/]) && massValueCount(lower) >= 2,
+    projectile_motion: hasAny(lower, [/\blaunch(ed)?\b/, /\bthrown?\b/, /\bprojectile\b/, /\bangle\b/, /\binitial velocity\b/]) && (hasSpeedValue(lower) || hasAngleValue(lower)),
+    collision_1d: hasAny(lower, [/\bcollision\b/, /\bcollide\b/, /\bhit\b/, /\bcrash\b/, /\bbounce\b/]),
+    pendulum: hasAny(lower, [/\bpendulum\b/, /\bstring\b/, /\bswing\b/, /\boscillat/]) && hasLengthValue(lower),
+    free_fall: hasAny(lower, [/\bdrop\b/, /\bdropped\b/, /\bfall(?:s|ing)?\b/, /\bgravity\b/]) && !hasAny(lower, [/\bhorizontal\b/, /\bangle\b/, /\blaunch\b/]),
+    spring_mass: hasAny(lower, [/\bspring\b/, /\boscillat/, /\bhooke\b/]) && hasAny(lower, [/\bspring\s+constant\b/, /\bk\s*=/, /\bn\/m\b/, /\bmass\b/, /\bkg\b/]),
+    circular_motion: hasAny(lower, [/\bcircular\b/, /\brotation\b/, /\borbit\b/, /\bcentripetal\b/, /\bspinning\b/, /\bspin\b/]) && hasAny(lower, [/\bradius\b/, /\bm\b/, /\bvelocity\b/, /\bspeed\b/]),
+    torque: hasAny(lower, [/\btorque\b/, /\brotation\b/, /\blever arm\b/, /\bangular\b/]) && hasAny(lower, [/\bforce\b/, /\b\d+(?:\.\d+)?\s*n\b/]) && hasAny(lower, [/\bdistance\b/, /\blength\b/, /\blever arm\b/, /\barm\b/]),
+    electric_field: hasAny(lower, [/\bcharge\b/, /\bcharges\b/, /\belectric\b/, /\bcoulomb\b/]) && (chargeValueCount(lower) >= 2 || /\bcharges?\s+[+-]?\d+(?:\.\d+)?\s+(?:and\s+)?[+-]?\d+(?:\.\d+)?/.test(lower)),
+    ohm_law: hasAny(lower, [/\bvoltage\b/, /\bcurrent\b/, /\bresistance\b/, /\bcircuit\b/, /\bohm\b/]) && countOhmValues(lower) >= 2,
+    bernoulli: hasAny(lower, [/\bfluid\b/, /\bflow\b/, /\bpressure\b/, /\bvelocity\b/, /\bpipe\b/, /\bbernoulli\b/]) && hasSpeedValue(lower) && hasAny(lower, [/\bpressure\b/, /\bheight\b/]),
+    standing_waves: hasAny(lower, [/\bwave\b/, /\bharmonic\b/, /\bstring\b/, /\bfrequency\b/, /\bwavelength\b/]) && hasAny(lower, [/\blength\b/, /\b\d+(?:\.\d+)?\s*m\b/, /\bfrequency\b/, /\btension\b/]),
+    bohr_model: hasAny(lower, [/\batom\b/, /\belectron\b/, /\bshell\b/, /\borbit\b/, /\bbohr\b/, /\bhydrogen\b/, /\belement\b/, /\batomic number\b/]),
+  };
+  addMissing(keywordChecks[type], "matching physics context");
+  const fieldMissing = resolveMissingFields(type, config, rawPrompt);
+  missing.push(...fieldMissing);
+  const missingFields = unique(missing);
+  const confidence = keywordChecks[type] ? Math.max(0, 0.95 - missingFields.length * 0.12) : 0.2;
+  return {
+    simulationType: missingFields.includes("matching physics context") ? null : type,
+    confidence,
+    missingFields,
+    shouldRender: confidence >= CONFIDENCE_THRESHOLD && missingFields.length === 0,
+  };
+}
+
+function getSimulationConfidence(parsedOutput: SimulationConfig | null, rawPrompt: string): ConfidenceResult {
+  const explicitType = explicitLabType(rawPrompt);
+  if (explicitType) {
+    const config = parsedOutput?.type === explicitType ? parsedOutput : DEFAULT_CONFIGS[explicitType];
+    return {
+      simulationType: explicitType,
+      confidence: 0.98,
+      missingFields: resolveMissingFields(explicitType, config, rawPrompt),
+      shouldRender: true,
+    };
+  }
+
+  const candidates = (Object.keys(DEFAULT_CONFIGS) as SimulationType[])
+    .map((type) => confidenceForType(type, parsedOutput?.type === type ? parsedOutput : DEFAULT_CONFIGS[type], rawPrompt))
+    .filter((result) => result.simulationType !== null)
+    .sort((a, b) => b.confidence - a.confidence);
+  const parsedCandidate = parsedOutput ? confidenceForType(parsedOutput.type, parsedOutput, rawPrompt) : null;
+  const best = parsedCandidate?.shouldRender ? parsedCandidate : candidates[0];
+  if (!best || best.confidence < CONFIDENCE_THRESHOLD) {
+    return { simulationType: null, confidence: best?.confidence ?? 0, missingFields: best?.missingFields ?? ["physics system"], shouldRender: false };
+  }
+  return best;
+}
+
+function normalizeForPrompt(config: SimulationConfig, prompt: string): SimulationConfig {
+  const normalizedPrompt = normalizePromptText(prompt);
+  const extractedConfig = mergePromptExtraction(config, normalizedPrompt);
+  return normalizeSpringMassConfig(
+    normalizeTorqueConfig(
+      normalizeOhmConfig(
+        normalizeBernoulliConfig(
+          normalizeBohrConfig(
+            normalizeProjectileConfig(
+              normalizeFreeFallConfig(
+                normalizeElectricFieldConfig(
+                  normalizeAtwoodConfig(normalizeCollisionConfig(extractedConfig, normalizedPrompt), normalizedPrompt),
+                  normalizedPrompt
+                ),
+                normalizedPrompt
+              ),
+              normalizedPrompt
+            ),
+            normalizedPrompt
+          ),
+          normalizedPrompt
+        ),
+        normalizedPrompt
+      ),
+      normalizedPrompt
+    ),
+    normalizedPrompt
+  );
+}
+
+function configForConfidence(parsed: SimulationConfig, confidence: ConfidenceResult, prompt: string): SimulationConfig {
+  const type = confidence.simulationType ?? parsed.type;
+  const defaults = DEFAULT_CONFIGS[type];
+  const base = parsed.type === type
+    ? {
+        ...defaults,
+        ...parsed,
+        params: { ...defaults.params, ...parsed.params },
+        world: { ...defaults.world, ...parsed.world },
+      }
+    : defaults;
+  return normalizeForPrompt(base, prompt);
 }
 
 function displayExplanation(config: SimulationConfig, outcome: LaunchOutcome | null, fallback: string) {
@@ -495,6 +878,7 @@ export default function SimulationClient() {
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
   const [parsing, setParsing] = useState(false);
   const [parseMessage, setParseMessage] = useState("");
+  const [submittedAttempted, setSubmittedAttempted] = useState(Boolean(shared));
 
   useEffect(() => {
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
@@ -531,6 +915,7 @@ export default function SimulationClient() {
 
   const reparse = async () => {
     setParsing(true);
+    setSubmittedAttempted(true);
     setParseMessage("");
     try {
       if (isUnsupportedHorizontalForcePrompt(prompt)) {
@@ -541,6 +926,7 @@ export default function SimulationClient() {
       if (prompt === ATWOOD_PROMPT) {
         setConfig(ATWOOD_EXAMPLE);
         setOutcome(null);
+        setParseMessage("Opened Atwood Machine with default values. Add masses/distance for a custom setup.");
         saveHistory(prompt, ATWOOD_EXAMPLE);
         setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
         updateShareUrl(ATWOOD_EXAMPLE);
@@ -548,24 +934,39 @@ export default function SimulationClient() {
       }
 
       const parsed = await parseWithAgentverse(prompt);
+      const requestedType = explicitLabType(prompt);
 
       if (!parsed || !parsed.type || !parsed.params) {
+        if (requestedType) {
+          const fallbackConfig = normalizeForPrompt(DEFAULT_CONFIGS[requestedType], prompt);
+          const confidence = getSimulationConfidence(fallbackConfig, prompt);
+          const validatedNext = validateSimulationConfig(configForConfidence(fallbackConfig, confidence, prompt), prompt);
+          const nextConfig = validatedNext.config;
+          setConfig(nextConfig);
+          setOutcome(null);
+          setParseMessage(validatedNext.assumptions.length > 0 ? validatedNext.assumptions.join(" ") : confidence.missingFields.length > 0 ? `Opened ${SCENARIO_LABELS[nextConfig.type] ?? nextConfig.type} with default values. Add ${confidence.missingFields.join(", ")} for a custom setup.` : "");
+          saveHistory(prompt, nextConfig);
+          setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
+          updateShareUrl(nextConfig);
+          return;
+        }
         setParseMessage(PROMPT_HELP_MESSAGE);
         return;
       }
 
-      const nextConfig = validateSimulationConfig(
-        normalizeSpringMassConfig(
-          normalizeTorqueConfig(
-            normalizeFreeFallConfig(normalizeElectricFieldConfig(normalizeAtwoodConfig(normalizeCollisionConfig(parsed, prompt), prompt), prompt), prompt),
-            prompt
-          ),
-          prompt
-        ),
-        prompt
-      ).config;
+      const normalized = normalizeForPrompt(parsed, prompt);
+      const confidence = getSimulationConfidence(normalized, prompt);
+      if (!confidence.shouldRender) {
+        setParseMessage(`${LOW_CONFIDENCE_MESSAGE}${confidence.missingFields.length ? ` Missing: ${confidence.missingFields.join(", ")}.` : ""}`);
+        setOutcome(null);
+        return;
+      }
+
+      const validatedNext = validateSimulationConfig(configForConfidence(normalized, confidence, prompt), prompt);
+      const nextConfig = validatedNext.config;
       setConfig(nextConfig);
       setOutcome(null);
+      setParseMessage(validatedNext.assumptions.length > 0 ? validatedNext.assumptions.join(" ") : confidence.missingFields.length > 0 ? `Opened ${SCENARIO_LABELS[nextConfig.type] ?? nextConfig.type} with default values. Add ${confidence.missingFields.join(", ")} for a custom setup.` : "");
       saveHistory(prompt, nextConfig);
       setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
       updateShareUrl(nextConfig);
@@ -578,8 +979,10 @@ export default function SimulationClient() {
 
   const runDemo = () => {
     const nextPrompt = DEFAULT_PROMPT;
+    setPrompt(nextPrompt);
     setConfig(DEMO_SHOT);
     setOutcome(null);
+    setSubmittedAttempted(true);
     setParseMessage("");
     saveHistory(nextPrompt, DEMO_SHOT);
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
@@ -590,6 +993,7 @@ export default function SimulationClient() {
     setPrompt(ATWOOD_PROMPT);
     setConfig(ATWOOD_EXAMPLE);
     setOutcome(null);
+    setSubmittedAttempted(true);
     setParseMessage("");
     saveHistory(ATWOOD_PROMPT, ATWOOD_EXAMPLE);
     setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"));
@@ -597,7 +1001,16 @@ export default function SimulationClient() {
   };
 
   const shareLink = typeof window === "undefined" ? "" : window.location.href;
-  const validated = useMemo(() => validateSimulationConfig(config, prompt), [config, prompt]);
+  const baseValidated = useMemo(() => validateSimulationConfig(config, prompt), [config, prompt]);
+  const activeConfidence = useMemo(() => {
+    if (!submittedAttempted) return { simulationType: config.type, confidence: 1, missingFields: [], shouldRender: true };
+    return getSimulationConfidence(baseValidated.config, prompt);
+  }, [baseValidated.config, config.type, prompt, submittedAttempted]);
+  const validated = useMemo(() => {
+    if (!submittedAttempted) return baseValidated;
+    if (!activeConfidence.shouldRender) return baseValidated;
+    return validateSimulationConfig(configForConfidence(baseValidated.config, activeConfidence, prompt), prompt);
+  }, [activeConfidence, baseValidated, prompt, submittedAttempted]);
   const activeConfig = validated.config;
   const explanation = buildExplanation(activeConfig, outcome);
   const shownExplanation = displayExplanation(activeConfig, outcome, explanation);
@@ -606,6 +1019,7 @@ export default function SimulationClient() {
   const visibleParams = Object.entries(activeConfig.params).filter(([key]) => paramKeys.includes(key));
   const showGravity = GRAVITY_SCENARIOS.has(activeConfig.type);
   const hasRun = Boolean(outcome?.launched);
+  const shouldBlockRender = submittedAttempted && (!validated.valid || !activeConfidence.shouldRender);
 
   return (
     <main className="min-h-screen px-3 py-3 sm:px-4 lg:px-5">
@@ -620,7 +1034,7 @@ export default function SimulationClient() {
               <label className="sr-only">Physics Problem</label>
               <textarea
                 value={prompt}
-                onChange={(event) => { setPrompt(event.target.value); setParseMessage(""); }}
+                onChange={(event) => { setPrompt(event.target.value); setSubmittedAttempted(false); setParseMessage(""); }}
                 className="min-h-14 w-full resize-none rounded-md border border-slate-200 bg-white/85 px-3 py-2 text-sm leading-5 outline-none transition focus:border-[#216869] focus:ring-2 focus:ring-[#216869]/20"
                 placeholder="Describe a physics word problem..."
               />
@@ -654,13 +1068,16 @@ export default function SimulationClient() {
 
         <div className="grid gap-4 xl:grid-cols-[minmax(560px,760px)_310px] xl:justify-center">
           <section className="min-w-0">
-            {validated.valid ? (
+            {!shouldBlockRender ? (
               <MatterScene config={activeConfig} onOutcome={setOutcome} onLoadAtwoodExample={loadAtwoodExample} />
             ) : (
               <div className="rounded-xl bg-white/85 p-5 shadow-glow ring-1 ring-slate-200/60">
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-950">
                   <h2 className="text-lg font-black">We couldn&apos;t fully understand this problem.</h2>
-                  <p className="mt-2 text-sm leading-6">Missing required values: {validated.missing.join(", ")}</p>
+                  <p className="mt-2 text-sm leading-6">{activeConfidence.shouldRender ? "Missing required values" : LOW_CONFIDENCE_MESSAGE}</p>
+                  {(activeConfidence.missingFields.length > 0 || validated.missing.length > 0) ? (
+                    <p className="mt-2 text-sm leading-6">Missing: {unique([...activeConfidence.missingFields, ...validated.missing]).join(", ")}</p>
+                  ) : null}
                   <p className="mt-2 text-sm leading-6 text-amber-900">Try adding those values, or choose one of the examples below.</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button onClick={runDemo} className="rounded-md bg-[#216869] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1a5556]">Use Default Demo</button>
@@ -713,7 +1130,7 @@ export default function SimulationClient() {
                   {validated.assumptions.map((assumption) => <div key={assumption}>{assumption}</div>)}
                 </div>
               ) : null}
-              {!validated.valid ? (
+              {submittedAttempted && !validated.valid ? (
                 <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-semibold leading-5 text-amber-900">Add the missing values to enable this simulation.</p>
               ) : null}
             </section>

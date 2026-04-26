@@ -30,7 +30,7 @@ Params: { "mass1": <0.5–10 kg>, "v1": <-20 to 20 m/s>, "mass2": <0.5–10 kg>,
 
 ### pendulum
 Use when: a pendulum, swinging object, string with mass, oscillation.
-Params: { "length": <50–250 px, scale 1m = 50px>, "initial_angle": <5–80 deg from vertical>, "mass": <0.5–5 kg> }
+Params: { "length": <meters>, "initial_angle": <5–80 deg from vertical>, "mass": <0.5–5 kg> }
 
 ### inclined_plane
 Use when: a ramp, slope, inclined surface, block sliding.
@@ -38,7 +38,7 @@ Params: { "angle": <5–60 deg>, "friction": <0–0.9>, "mass": <0.5–5 kg> }
 
 ### free_fall
 Use when: dropping an object, free fall, falling from height, gravity comparison.
-Params: { "height": <50–400 px, scale 1m = 10px>, "mass": <0.5–10 kg>, "air_resistance": <0–0.1, 0=vacuum> }
+Params: { "height": <meters>, "mass": <0.5–10 kg>, "air_resistance": <0–0.1, 0=vacuum> }
 
 ## World parameters (always include)
 { "gravity": <1–20, Earth=9.8, Moon=1.6, Mars=3.7>, "friction": <0–1> }
@@ -52,15 +52,20 @@ Params: { "height": <50–400 px, scale 1m = 10px>, "mass": <0.5–10 kg>, "air_
 }
 
 Rules:
-- Default to projectile_motion if uncertain.
+- If uncertain or the prompt is vague, return {"type":"unknown","params":{},"world":{},"explanationGoal":""}.
+- Never default to projectile_motion because of uncertainty.
+- Extract physical values from the prompt; do not output visual pixel values.
+- Prompt values must override defaults, and missing values should be omitted unless they are safe defaults.
+- Normalize symbols before extracting: ° means degrees, Ω means ohms, μ/µ means mu, μC/µC means microC, and compact units like 2kg, 20m/s, 12V, 6Ω, 50N/m, and 10N contain usable values.
+- Associate unit values with the right parameter instead of using demo defaults.
 - Output ONLY the JSON object. No other text."""
 
 DEFAULTS = {
     "projectile_motion": {"angle": 38, "speed": 18, "mass": 1, "initial_height": 0},
     "collision_1d": {"mass1": 2, "v1": 5, "mass2": 1, "v2": -2, "restitution": 0.8},
-    "pendulum": {"length": 150, "initial_angle": 45, "mass": 1},
+    "pendulum": {"length": 3, "initial_angle": 45, "mass": 1},
     "inclined_plane": {"angle": 30, "friction": 0.3, "mass": 1},
-    "free_fall": {"height": 200, "mass": 1, "air_resistance": 0},
+    "free_fall": {"height": 20, "mass": 1, "air_resistance": 0},
 }
 
 VALID_TYPES = list(DEFAULTS.keys())
@@ -71,18 +76,17 @@ def clamp(v, lo, hi):
 
 
 def sanitize(raw: dict) -> dict:
-    sim_type = raw.get("type", "projectile_motion")
+    sim_type = raw.get("type", "unknown")
     if sim_type not in VALID_TYPES:
-        sim_type = "projectile_motion"
+        return {"type": "unknown", "params": {}, "world": {"gravity": 9.8, "friction": 0}, "explanationGoal": ""}
 
     defaults = DEFAULTS[sim_type]
     params = {}
-    for key, default_val in defaults.items():
-        val = raw.get("params", {}).get(key, default_val)
+    for key, val in raw.get("params", {}).items():
         try:
             params[key] = float(val)
         except (TypeError, ValueError):
-            params[key] = default_val
+            pass
 
     world = raw.get("world", {})
     return {
@@ -90,7 +94,7 @@ def sanitize(raw: dict) -> dict:
         "params": params,
         "world": {
             "gravity": clamp(float(world.get("gravity", 9.8)), 1, 20),
-            "friction": clamp(float(world.get("friction", 0.1)), 0, 1),
+            "friction": clamp(float(world.get("friction", 0)), 0, 1),
         },
         "explanationGoal": raw.get("explanationGoal", "Explain the physics of this scenario."),
     }
@@ -154,10 +158,10 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     except Exception as e:
         ctx.logger.error(f"Groq failed: {e}")
         response_text = json.dumps({
-            "type": "projectile_motion",
-            "params": DEFAULTS["projectile_motion"],
-            "world": {"gravity": 9.8, "friction": 0.1},
-            "explanationGoal": "Explain the physics of this scenario.",
+            "type": "unknown",
+            "params": {},
+            "world": {"gravity": 9.8, "friction": 0},
+            "explanationGoal": "",
         })
 
     await ctx.send(

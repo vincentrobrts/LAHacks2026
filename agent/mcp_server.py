@@ -30,7 +30,7 @@ Params: { "mass1": <0.5–10 kg>, "v1": <-20 to 20 m/s>, "mass2": <0.5–10 kg>,
 
 ### pendulum
 Use when: a pendulum, swinging object, string with mass, oscillation.
-Params: { "length": <50–250 px, scale 1m = 50px>, "initial_angle": <5–80 deg from vertical>, "mass": <0.5–5 kg> }
+Params: { "length": <meters>, "initial_angle": <5–80 deg from vertical>, "mass": <0.5–5 kg> }
 
 ### inclined_plane
 Use when: a ramp, slope, inclined surface, block sliding.
@@ -38,7 +38,7 @@ Params: { "angle": <5–60 deg>, "friction": <0–0.9>, "mass": <0.5–5 kg>, "d
 
 ### free_fall
 Use when: dropping an object, free fall, falling from height, gravity comparison.
-Params: { "height": <50–400 px, scale 1m = 10px>, "mass": <0.5–10 kg>, "air_resistance": <0–0.1, 0=vacuum> }
+Params: { "height": <meters>, "mass": <0.5–10 kg>, "air_resistance": <0–0.1, 0=vacuum> }
 
 ### spring_mass
 Use when: a mass on a spring, Hooke's law, SHM, oscillation with a spring constant.
@@ -88,21 +88,26 @@ Params: { "atomic_number": <1–10>, "n_initial": <1–7>, "n_final": <1–6> }
 }
 
 Rules:
-- Default to projectile_motion if uncertain.
+- If uncertain or the prompt is vague, return {"type":"unknown","params":{},"world":{},"explanationGoal":""}.
+- Never default to projectile_motion because of uncertainty.
+- Extract physical values from the prompt; do not output visual pixel values.
+- Prompt values must override defaults, and missing values should be omitted unless they are safe defaults.
+- Normalize symbols before extracting: ° means degrees, Ω means ohms, μ/µ means mu, μC/µC means microC, and compact units like 2kg, 20m/s, 12V, 6Ω, 50N/m, and 10N contain usable values.
+- Associate unit values with the right parameter instead of using demo defaults.
 - Output ONLY the JSON object. No other text."""
 
 DEFAULTS = {
     "projectile_motion": {"angle": 38, "speed": 18, "mass": 1, "initial_height": 0},
     "collision_1d": {"mass1": 2, "v1": 5, "mass2": 1, "v2": -2, "restitution": 0.8},
-    "pendulum": {"length": 150, "initial_angle": 45, "mass": 1},
+    "pendulum": {"length": 3, "initial_angle": 45, "mass": 1},
     "inclined_plane": {"angle": 30, "friction": 0.2, "mass": 5, "distance": 3},
-    "free_fall": {"height": 200, "mass": 1, "air_resistance": 0},
+    "free_fall": {"height": 20, "mass": 1, "air_resistance": 0},
     "spring_mass": {"spring_constant": 20, "mass": 1, "amplitude": 0.5},
     "atwood_table": {"mass1": 4, "mass2": 2, "friction": 0, "distance": 3},
     "circular_motion": {"radius": 2, "mass": 1, "speed": 4},
     "torque": {"force": 20, "arm_length": 1.5, "mass": 2},
     "electric_field": {"charge1": 5, "charge2": -3, "separation": 1.0},
-    "ohm_law": {"voltage": 12, "resistance": 40, "internal_resistance": 2},
+    "ohm_law": {"voltage": 12, "resistance": 40, "internal_resistance": 0},
     "bernoulli": {"v1": 2, "area_ratio": 3, "density": 1000},
     "standing_waves": {"tension": 40, "linear_density": 0.005, "length": 2, "harmonic": 3},
     "bohr_model": {"atomic_number": 1, "n_initial": 3, "n_final": 1},
@@ -132,24 +137,25 @@ def parse_with_groq(prompt: str) -> dict:
     with urllib.request.urlopen(req) as resp:
         data = json.loads(resp.read())
     raw = json.loads(data["choices"][0]["message"]["content"])
-    sim_type = raw.get("type", "projectile_motion")
+    sim_type = raw.get("type", "unknown")
     if sim_type not in DEFAULTS:
-        sim_type = "projectile_motion"
+        return {"type": "unknown", "params": {}, "world": {"gravity": 9.8, "friction": 0}, "explanationGoal": ""}
     defaults = DEFAULTS[sim_type]
     params = {}
-    for key, default_val in defaults.items():
-        val = raw.get("params", {}).get(key, default_val)
+    aliases = {"length": "arm_length" if sim_type == "torque" else "length", "distance": "separation" if sim_type == "electric_field" else "distance", "velocity1": "v1", "velocity2": "v2"}
+    for raw_key, val in raw.get("params", {}).items():
+        key = aliases.get(raw_key, raw_key)
         try:
             params[key] = float(val)
         except (TypeError, ValueError):
-            params[key] = default_val
+            pass
     world = raw.get("world", {})
     return {
         "type": sim_type,
         "params": params,
         "world": {
             "gravity": clamp(float(world.get("gravity", 9.8)), 1, 20),
-            "friction": clamp(float(world.get("friction", 0.1)), 0, 1),
+            "friction": clamp(float(world.get("friction", 0)), 0, 1),
         },
         "explanationGoal": raw.get("explanationGoal", "Explain the physics of this scenario."),
     }
@@ -163,7 +169,7 @@ def compute_results(config: dict) -> dict:
     if sim_type == "projectile_motion":
         angle_rad = math.radians(p["angle"])
         v = p["speed"]
-        h0 = p.get("initial_height", 0) / 10  # px to meters
+        h0 = p.get("initial_height", 0)
         vy = v * math.sin(angle_rad)
         vx = v * math.cos(angle_rad)
         # time of flight with initial height
@@ -192,14 +198,14 @@ def compute_results(config: dict) -> dict:
         }
 
     if sim_type == "pendulum":
-        L = p["length"] / 50  # px to meters
+        L = p["length"]
         period = 2 * math.pi * math.sqrt(L / g)
         angle_rad = math.radians(p["initial_angle"])
         max_speed = math.sqrt(2 * g * L * (1 - math.cos(angle_rad)))
         return {"period_s": round(period, 3), "max_speed_m_s": round(max_speed, 2)}
 
     if sim_type == "free_fall":
-        h = p["height"] / 10  # px to meters
+        h = p["height"]
         k = p.get("air_resistance", 0)
         if k == 0:
             t = math.sqrt(2 * h / g)
@@ -1445,12 +1451,11 @@ def simulate_physics(prompt: str) -> str:
     try:
         config = parse_with_groq(prompt)
     except Exception:
-        sim_type = "projectile_motion"
         config = {
-            "type": sim_type,
-            "params": DEFAULTS[sim_type],
-            "world": {"gravity": 9.8, "friction": 0.1},
-            "explanationGoal": "Explain the physics of this scenario.",
+            "type": "unknown",
+            "params": {},
+            "world": {"gravity": 9.8, "friction": 0},
+            "explanationGoal": "",
         }
 
     results = compute_results(config)

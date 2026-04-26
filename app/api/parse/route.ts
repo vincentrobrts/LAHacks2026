@@ -1,7 +1,7 @@
 import Groq from "groq-sdk";
 import { NextRequest, NextResponse } from "next/server";
-import { parsePhysicsPrompt } from "@/lib/parser";
 import { DEFAULT_CONFIGS } from "@/lib/defaults";
+import { parsePhysicsPrompt } from "@/lib/parser";
 import type { SimulationConfig, SimulationType } from "@/types/simulation";
 
 const VALID_TYPES: SimulationType[] = [
@@ -21,100 +21,55 @@ const VALID_TYPES: SimulationType[] = [
   "bohr_model",
 ];
 
-const SYSTEM_PROMPT = `You are a physics simulation configurator. Given a physics problem or scenario in natural language, identify which simulation type best fits, extract the relevant parameters, and output ONLY valid JSON — no explanation, no markdown, no code blocks.
+const SYSTEM_PROMPT = `You are a physics simulation configurator. Given a physics problem or scenario in natural language, identify which supported simulation type best fits, extract the relevant parameters, and output ONLY valid JSON.
 
-## Simulation types and their parameter schemas
+Supported types: projectile_motion, collision_1d, pendulum, inclined_plane, free_fall, atwood_table, spring_mass, circular_motion, torque, electric_field, ohm_law, bernoulli, standing_waves, bohr_model.
 
-### projectile_motion
-Use when: a ball, projectile, or object is launched at an angle or off a surface.
-Params: { "angle": <0–85 deg>, "speed": <5–40 m/s>, "mass": <0.5–5 kg>, "initial_height": <0–300 px, default 0> }
-
-### collision_1d
-Use when: two objects collide, momentum, elastic/inelastic collision.
-Params: { "mass1": <0.5–10 kg>, "v1": <-20 to 20 m/s>, "mass2": <0.5–10 kg>, "v2": <-20 to 20 m/s>, "restitution": <0–1, 1=elastic, 0=inelastic> }
-
-### pendulum
-Use when: a pendulum, swinging object, string with mass, oscillation.
-Params: { "length": <50–250 px, scale 1m = 50px>, "initial_angle": <5–80 deg from vertical>, "mass": <0.5–5 kg> }
-
-### inclined_plane
-Use when: a ramp, slope, inclined surface, block sliding.
-Params: { "angle": <5–60 deg>, "friction": <0–0.9>, "mass": <0.5–5 kg> }
-
-### free_fall
-Use when: dropping an object, free fall, falling from height, gravity comparison.
-Params: { "height": <50–400 px, scale 1m = 10px>, "mass": <0.5–10 kg>, "air_resistance": <0–0.1, 0=vacuum> }
-
-### spring_mass
-Use when: a mass on a spring, Hooke's law, SHM, oscillation with a spring constant.
-Params: { "spring_constant": <1–100 N/m>, "mass": <0.5–5 kg>, "amplitude": <0.05–1.5 m> }
-
-### atwood_table
-Use when: Atwood machine, pulley with two masses, one on table one hanging, connected by string.
-Params: { "mass1": <0.5–10 kg, table mass>, "mass2": <0.5–10 kg, hanging mass>, "friction": <0–0.9>, "distance": <1–5 m> }
-
-### circular_motion
-Use when: centripetal force, object moving in a circle, orbit, uniform circular motion.
-Params: { "radius": <0.5–4 m>, "mass": <0.5–5 kg>, "speed": <0.5–20 m/s> }
-
-### torque
-Use when: torque, lever arm, rotational force, moment, angular acceleration, rotating rod.
-Params: { "force": <1–100 N>, "arm_length": <0.1–3 m>, "mass": <0.5–10 kg> }
-
-### electric_field
-Use when: Coulomb force, electric field lines, point charges, electrostatics, attraction/repulsion.
-Params: { "charge1": <-10 to 10 μC>, "charge2": <-10 to 10 μC>, "separation": <0.1–2 m> }
-
-### ohm_law
-Use when: Ohm's law, circuit, voltage, current, resistance, power dissipation, battery.
-Params: { "voltage": <1–24 V>, "resistance": <1–100 Ω>, "internal_resistance": <0–10 Ω> }
-
-### bernoulli
-Use when: Bernoulli's principle, fluid flow, pipe flow, pressure drop, Venturi.
-Params: { "v1": <0.5–10 m/s>, "area_ratio": <1–4, A1/A2>, "density": <500–1500 kg/m³> }
-
-### standing_waves
-Use when: standing wave, resonance, string vibration, harmonics, nodes and antinodes.
-Params: { "tension": <1–100 N>, "linear_density": <0.001–0.01 kg/m>, "length": <0.5–3 m>, "harmonic": <1–6> }
-
-### bohr_model
-Use when: Bohr model, hydrogen atom, electron energy levels, photon emission, spectral lines.
-Params: { "atomic_number": <1–10>, "n_initial": <1–7>, "n_final": <1–6> }
-
-## World parameters (always include)
-{ "gravity": <1–20, Earth=9.8, Moon=1.6, Mars=3.7>, "friction": <0–1> }
-
-## Output format (STRICT — no deviations)
+Output format:
 {
-  "type": "<one of the fourteen types above>",
-  "params": { <parameters for the chosen type> },
-  "world": { "gravity": <number>, "friction": <number> },
-  "explanationGoal": "<one sentence: what should be explained about this scenario>"
+  "type": "<supported type or unknown>",
+  "params": { "<parameter>": <number> },
+  "world": { "gravity": <number if known>, "friction": <number if known> },
+  "explanationGoal": "<short sentence or empty string>"
 }
 
 Rules:
-- Choose the single best matching type. Default to projectile_motion if uncertain.
-- All param values must be within the specified ranges.
-- Output ONLY the JSON object. No other text.`;
+- Choose a supported type only when the prompt clearly supports it.
+- If the prompt is vague or unsupported, output { "type": "unknown", "params": {}, "world": {}, "explanationGoal": "" }.
+- Never default to projectile_motion because of uncertainty.
+- Extract values from the prompt in physical units, not visual pixels.
+- Pendulum length, free fall height, standing wave length, distances, and initial height are meters.
+- Prompt values override defaults. Never replace values like 5 kg, 30 degrees, mu = 0.2, 12 V, or 6 ohm with demo values.
+- Omit genuinely missing parameters instead of inventing unsafe values.
+- Safe defaults are allowed only for confident routes: gravity=9.8 when missing, friction=0 for frictionless/no-friction, internal_resistance=0 for Ohm's law when absent, density=1000 for water, height1=height2=0 for a horizontal pipe, initial_height=0 for ground level.
+- Use app keys: arm_length for torque lever arm, separation for charge distance, v1/v2 for Bernoulli velocities, n_initial/n_final for Bohr transitions.
+- Output ONLY the JSON object. No markdown or prose.`;
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-function sanitize(raw: SimulationConfig): SimulationConfig {
-  const type: SimulationType = VALID_TYPES.includes(raw.type) ? raw.type : "projectile_motion";
-  const defaults = DEFAULT_CONFIGS[type];
-
+function sanitize(raw: SimulationConfig): SimulationConfig | null {
+  if (!raw || !VALID_TYPES.includes(raw.type)) return null;
+  const defaults = DEFAULT_CONFIGS[raw.type];
+  const aliases: Record<string, string> = {
+    length: raw.type === "torque" ? "arm_length" : "length",
+    distance: raw.type === "electric_field" ? "separation" : "distance",
+    velocity1: "v1",
+    velocity2: "v2",
+  };
   const params: Record<string, number> = {};
-  for (const [key, defaultVal] of Object.entries(defaults.params)) {
-    const raw_val = raw.params?.[key];
-    params[key] = typeof raw_val === "number" && isFinite(raw_val) ? raw_val : defaultVal;
+
+  for (const [rawKey, rawValue] of Object.entries(raw.params ?? {})) {
+    const key = aliases[rawKey] ?? rawKey;
+    const value = Number(rawValue);
+    if (Number.isFinite(value)) params[key] = value;
   }
 
   return {
-    type,
+    type: raw.type,
     params,
     world: {
       gravity: clamp(Number(raw.world?.gravity) || 9.8, 1, 20),
-      friction: clamp(Number(raw.world?.friction) || 0.1, 0, 1),
+      friction: clamp(Number(raw.world?.friction) || 0, 0, 1),
     },
     explanationGoal: typeof raw.explanationGoal === "string" && raw.explanationGoal
       ? raw.explanationGoal
@@ -130,9 +85,14 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.GROQ_API_KEY;
+  const localConfig = parsePhysicsPrompt(prompt);
+
+  if (localConfig) {
+    return NextResponse.json(localConfig);
+  }
 
   if (!apiKey) {
-    return NextResponse.json(parsePhysicsPrompt(prompt));
+    return NextResponse.json(null);
   }
 
   try {

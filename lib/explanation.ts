@@ -60,7 +60,7 @@ export function buildExplanation(config: SimulationConfig, outcome: LaunchOutcom
     case "pendulum": {
       const period = (outcome.metrics.period ?? 0).toFixed(2);
       const maxSpeed = (outcome.metrics.maxSpeed ?? 0).toFixed(2);
-      return `Pendulum released at ${p.initial_angle}° with length ${p.length}px. ` +
+      return `Pendulum released at ${p.initial_angle}° with length ${p.length} m. ` +
         `Period ≈ ${period}s, max speed at bottom ≈ ${maxSpeed} m/s. ` +
         `Period depends on length and gravity, not mass or angle (for small angles).`;
     }
@@ -74,7 +74,7 @@ export function buildExplanation(config: SimulationConfig, outcome: LaunchOutcom
     case "free_fall": {
       const time = (outcome.metrics.timeToGround ?? 0).toFixed(2);
       const speed = (outcome.metrics.finalSpeed ?? 0).toFixed(2);
-      return `Object dropped from ${(p.height / 10).toFixed(0)} m with air resistance ${p.air_resistance}. ` +
+      return `Object dropped from ${p.height} m with air resistance ${p.air_resistance}. ` +
         `Hit the ground in ${time}s at ${speed} m/s. ` +
         `${p.air_resistance === 0 ? "In a vacuum, all masses fall identically." : "Air resistance reduces final speed and extends fall time."}`;
     }
