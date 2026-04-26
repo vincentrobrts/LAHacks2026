@@ -128,20 +128,18 @@ function projectDOF(body: Body): void {
 
 // ─── Ramp friction as velocity damping ───────────────────────────────────────
 
-function applyRampFriction(body: Body, gravity: number): void {
+// rampAngle stored as (π - visual_slope), so cos(rampAngle) = -cos(visual_slope).
+// Use Math.abs to get the correct positive normal-force component.
+function applyRampFriction(body: Body, gravity: number, dt2: number): void {
   if (body.dof !== "ramp" || body.mu === undefined || body.rampAngle === undefined) return;
-  const angle = body.rampAngle;
-  const normalForce = body.mass * gravity * Math.cos(angle);
-  const frictionForce = body.mu * normalForce;
-  // Convert to deceleration per step: damp velocity proportionally
-  // velocity in px per step; friction force in N (px units)
-  // We use a simple per-step damping coefficient
+  const cosTheta = Math.abs(Math.cos(body.rampAngle)); // = cos(visual_slope_angle)
+  const frictionAccel = body.mu * gravity * cosTheta; // px/s²
+  // Verlet velocity (pos − prevPos) is in px; friction damp must also be in px (= accel × dt²).
+  const frictionDamp = frictionAccel * dt2;
   const vel = getVelocity(body);
   const speed = vecLen(vel);
   if (speed < 1e-9) return;
-  // friction impulse magnitude (px) = frictionForce / mass * (dt in s)^2
-  // We dampen prevPos to reduce effective velocity
-  const damp = Math.min(speed, frictionForce / body.mass);
+  const damp = Math.min(speed, frictionDamp);
   const nx = vel.x / speed;
   const ny = vel.y / speed;
   body.prevPos.x += nx * damp;
@@ -246,7 +244,7 @@ export function stepWorld(world: PhysicsWorld, dtMs: number): void {
     projectDOF(body);
 
     // (5) Ramp friction
-    applyRampFriction(body, world.gravity);
+    applyRampFriction(body, world.gravity, dt2);
   }
 
   // (4) Satisfy rope constraints via XPBD (multiple iterations)

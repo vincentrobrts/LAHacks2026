@@ -48,19 +48,42 @@ type Props = {
 
 // ─── SVG components ───────────────────────────────────────────────────────────
 
+// rampAngle stored as (π − visual_slope_rad), so visual_slope_deg = 180 − rampAngle*(180/π).
+// For a left-direction ramp rising to the right, the block tilts left-side-down: SVG rotate(-slope_deg).
+function rampSvgRotation(body: Body): number {
+  if (body.dof !== "ramp" || body.rampAngle === undefined) return 0;
+  const slopeDeg = 180 - (body.rampAngle * 180) / Math.PI;
+  return -slopeDeg;
+}
+
 function MassBlock({ body }: { body: Body }) {
+  const rot = rampSvgRotation(body);
   return (
-    <g>
+    <g transform={`translate(${body.pos.x},${body.pos.y}) rotate(${rot})`}>
       <rect
-        x={body.pos.x - MASS_W / 2} y={body.pos.y - MASS_H / 2}
+        x={-MASS_W / 2} y={-MASS_H / 2}
         width={MASS_W} height={MASS_H}
         rx={4} fill="#216869" stroke="#174f50" strokeWidth={1.5}
       />
-      <text x={body.pos.x} y={body.pos.y + 4} textAnchor="middle" fontSize={10} fill="white" fontWeight="bold">
+      <text x={0} y={4} textAnchor="middle" fontSize={10} fill="white" fontWeight="bold">
         {fmt(body.mass, 1)} kg
       </text>
     </g>
   );
+}
+
+/** Rope attachment point on a body — block edge facing toward `target`, not the center. */
+function ropeAttach(body: Body, target: Vec2): Vec2 {
+  if (body.dof === "vertical") {
+    return { x: body.pos.x, y: body.pos.y - MASS_H / 2 };
+  }
+  if (body.dof === "ramp") {
+    const dx = target.x - body.pos.x;
+    const dy = target.y - body.pos.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: body.pos.x + (dx / len) * (MASS_W / 2), y: body.pos.y + (dy / len) * (MASS_W / 2) };
+  }
+  return body.pos;
 }
 
 function PulleyWheel({ pos, angle = 0 }: { pos: Vec2; angle?: number }) {
