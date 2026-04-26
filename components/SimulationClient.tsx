@@ -15,7 +15,7 @@ import type { LaunchOutcome, SimulationConfig, SimulationHistoryItem } from "@/t
 const HISTORY_KEY = "physics-visualizer-history";
 const PROMPT_HELP_MESSAGE = "Intuify couldn’t confidently build a visualization from that prompt yet. Try one of the examples below.";
 const EXAMPLE_PROMPTS = [
-  "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
+  "A 5 kg block slides down a 30 degree incline with μₖ = 0.2 for 3 meters.",
   "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
   "Problem: Two point charges are placed 2 meters apart. Charge 1: +3 μC. Charge 2: −2 μC. Question: What is the magnitude of the force between them? Is the force attractive or repulsive?",
 ];
@@ -147,6 +147,20 @@ function sliderRange(type: string, key: string) {
   return SLIDER_RANGES[key] ?? { min: 0, max: 20, step: 0.1 };
 }
 
+function metricLabel(key: string) {
+  const labels = {
+    fc: <>F<sub>c</sub></>,
+    ac: <>a<sub>c</sub></>,
+    omega: <>ω</>,
+    range_m: <>range</>,
+    peak_height_m: <>peak height</>,
+    time_of_flight_s: <>time of flight</>,
+    final_speed_m_s: <>final speed</>,
+    q1q2_force_n: <>q<sub>1</sub>q<sub>2</sub> force</>,
+  } as const;
+  return labels[key as keyof typeof labels] ?? key.replace(/m1/g, "m₁").replace(/m2/g, "m₂").replace(/q1/g, "q₁").replace(/q2/g, "q₂").replace(/_/g, " ");
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -226,6 +240,32 @@ function normalizeElectricFieldConfig(config: SimulationConfig, prompt: string):
     params,
     world: { ...config.world, gravity: config.world.gravity ?? 9.8, friction: 0 },
     explanationGoal: "Show how charge signs, distance, and Coulomb's law determine electric forces.",
+  };
+}
+
+function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  const lower = prompt.toLowerCase();
+  const atwoodLike = /\b(pulley|hanging|connected|table)\b/.test(lower) && /\bkg|mass|block\b/.test(lower);
+  if (config.type !== "atwood_table" && !atwoodLike) return config;
+
+  const number = "([0-9]+(?:\\.[0-9]+)?)";
+  const blockMatch = lower.match(new RegExp(`${number}\\s*kg\\s+(?:block|cart|object|mass)`));
+  const hangingMatch = lower.match(new RegExp(`hanging\\s+${number}\\s*kg`)) ?? lower.match(new RegExp(`${number}\\s*kg\\s+hanging`));
+  const distanceMatch = lower.match(/falls?\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/) ?? lower.match(/for\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)\b/);
+  const frictionless = /\bfrictionless\b/.test(lower);
+  const frictionMatch = lower.match(/(?:friction|mu|μ)\s*(?:=|is)?\s*([0-9]+(?:\.[0-9]+)?)/);
+
+  return {
+    ...config,
+    type: "atwood_table",
+    params: {
+      ...config.params,
+      ...(blockMatch ? { mass1: clamp(Number(blockMatch[1]), 0.5, 10) } : {}),
+      ...(hangingMatch ? { mass2: clamp(Number(hangingMatch[1]), 0.5, 10) } : {}),
+      ...(distanceMatch ? { distance: clamp(Number(distanceMatch[1]), 1, 5) } : {}),
+      ...(frictionless ? { friction: 0 } : frictionMatch ? { friction: clamp(Number(frictionMatch[1]), 0, 0.9) } : {}),
+    },
+    world: { ...config.world, friction: frictionless ? 0 : config.world.friction ?? 0 },
   };
 }
 
@@ -350,7 +390,7 @@ export default function SimulationClient() {
         return;
       }
 
-      const nextConfig = normalizeElectricFieldConfig(normalizeCollisionConfig(parsed, prompt), prompt);
+      const nextConfig = normalizeElectricFieldConfig(normalizeAtwoodConfig(normalizeCollisionConfig(parsed, prompt), prompt), prompt);
       setConfig(nextConfig);
       setOutcome(null);
       saveHistory(prompt, nextConfig);
@@ -487,7 +527,7 @@ export default function SimulationClient() {
                   {Object.entries(outcome.metrics).map(([key, val]) => (
                     <div key={key} className="rounded-md bg-[#216869]/10 p-2">
                       <div className="font-bold">{Number(val).toFixed(2)}</div>
-                      <div className="text-xs text-slate-600">{key.replace(/_/g, " ")}</div>
+                      <div className="text-xs text-slate-600">{metricLabel(key)}</div>
                     </div>
                   ))}
                 </div>

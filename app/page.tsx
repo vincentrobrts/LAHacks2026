@@ -7,17 +7,47 @@ import { useEffect, useState } from "react";
 import { parseWithAgentverse } from "@/lib/agentverse";
 import { DEFAULT_CONFIGS, DEFAULT_PROMPT, DEMO_SHOT } from "@/lib/defaults";
 import { encodeSimulation } from "@/lib/share";
-import type { SimulationHistoryItem } from "@/types/simulation";
+import type { SimulationConfig, SimulationHistoryItem } from "@/types/simulation";
 
 const HISTORY_KEY = "physics-visualizer-history";
 
 const EXAMPLE_PROMPTS = [
-  "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
+  "A 5 kg block slides down a 30 degree incline with μₖ = 0.2 for 3 meters.",
   "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
   "Problem: Two point charges are placed 2 meters apart. Charge 1: +3 μC. Charge 2: −2 μC. Question: What is the magnitude of the force between them? Is the force attractive or repulsive?",
 ];
 
 const ATWOOD_PROMPT = EXAMPLE_PROMPTS[1];
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeAtwoodConfig(config: SimulationConfig, prompt: string): SimulationConfig {
+  const lower = prompt.toLowerCase();
+  const atwoodLike = /\b(pulley|hanging|connected|table)\b/.test(lower) && /\bkg|mass|block\b/.test(lower);
+  if (config.type !== "atwood_table" && !atwoodLike) return config;
+
+  const number = "([0-9]+(?:\\.[0-9]+)?)";
+  const blockMatch = lower.match(new RegExp(\`\${number}\\\\s*kg\\\\s+(?:block|cart|object|mass)\`));
+  const hangingMatch = lower.match(new RegExp(\`hanging\\\\s+\${number}\\\\s*kg\`)) ?? lower.match(new RegExp(\`\${number}\\\\s*kg\\\\s+hanging\`));
+  const distanceMatch = lower.match(/falls?\\\\s+([0-9]+(?:\\.[0-9]+)?)\\\\s*(?:m|meter|meters)\\b/) ?? lower.match(/for\\\\s+([0-9]+(?:\\.[0-9]+)?)\\\\s*(?:m|meter|meters)\\b/);
+  const frictionless = /\\bfrictionless\\b/.test(lower);
+  const frictionMatch = lower.match(/(?:friction|mu|μ)\\\\s*(?:=|is)?\\\\s*([0-9]+(?:\\.[0-9]+)?)/);
+
+  return {
+    ...config,
+    type: "atwood_table",
+    params: {
+      ...config.params,
+      ...(blockMatch ? { mass1: clamp(Number(blockMatch[1]), 0.5, 10) } : {}),
+      ...(hangingMatch ? { mass2: clamp(Number(hangingMatch[1]), 0.5, 10) } : {}),
+      ...(distanceMatch ? { distance: clamp(Number(distanceMatch[1]), 1, 5) } : {}),
+      ...(frictionless ? { friction: 0 } : frictionMatch ? { friction: clamp(Number(frictionMatch[1]), 0, 0.9) } : {}),
+    },
+    world: { ...config.world, friction: frictionless ? 0 : config.world.friction ?? 0 },
+  };
+}
 
 export default function Home() {
   const router = useRouter();
@@ -32,7 +62,7 @@ export default function Home() {
   const isCompoundPrompt = (text: string) => {
     const t = text.toLowerCase();
     // Circuit: needs "series" or multiple labeled resistors (R1/R2) — not just battery+one resistor
-    const multiResistor = (t.match(/\br\d+\b/g) ?? []).length >= 2 || t.includes(" series");
+    const multiResistor = (t.match(/\\br\\d+\\b/g) ?? []).length >= 2 || t.includes(" series");
     // Pulley: compound only when a ramp or spring is also involved — table+pulley is simple atwood_table
     const compoundPulley = t.includes("pulley") && (t.includes("ramp") || t.includes("spring"));
     return (
@@ -46,10 +76,11 @@ export default function Home() {
   const start = async (perfect = false) => {
     setMessage("");
     if (!perfect && isCompoundPrompt(prompt)) {
-      router.push(`/compound?prompt=${encodeURIComponent(prompt)}`);
+      router.push(\`/compound?prompt=\${encodeURIComponent(prompt)}\`);
       return;
     }
-    const config = perfect ? DEMO_SHOT : await parseWithAgentverse(prompt);
+    const parsed = perfect ? DEMO_SHOT : prompt === ATWOOD_PROMPT ? DEFAULT_CONFIGS.atwood_table : await parseWithAgentverse(prompt);
+    const config = perfect || prompt === ATWOOD_PROMPT ? parsed : normalizeAtwoodConfig(parsed, prompt);
     const nextPrompt = perfect ? DEFAULT_PROMPT : prompt;
     const item: SimulationHistoryItem = {
       id: crypto.randomUUID(),
@@ -58,7 +89,7 @@ export default function Home() {
       timestamp: new Date().toISOString(),
     };
     localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...history].slice(0, 8)));
-    router.push(`/sim?state=${encodeSimulation(config, nextPrompt)}`);
+    router.push(\`/sim?state=\${encodeSimulation(config, nextPrompt)}\`);
   };
 
   return (
@@ -116,8 +147,6 @@ export default function Home() {
                 <text x="34" y="74" fill="#475569" fontSize="14">m = 5 kg, μₖ = 0.2, d = 3 m</text>
                 <path d="M74 306 L356 306 L356 144 Z" fill="#dfe8e4" stroke="#172033" strokeWidth="5" />
                 <path d="M74 306 L356 144" stroke="#172033" strokeWidth="8" strokeLinecap="round" />
-                <path d="M278 306 A78 78 0 0 0 288.4 267.1" fill="none" stroke="#f2c14e" strokeWidth="5" />
-                <text x="252" y="292" fill="#172033" fontSize="16" fontWeight="800">30°</text>
                 <g transform="translate(205 205)">
                   <g>
                     <animateTransform attributeName="transform" type="translate" values="0 0; -7 4; 0 0" dur="3.2s" repeatCount="indefinite" />
@@ -149,7 +178,7 @@ export default function Home() {
             <div className="mt-3 space-y-2">
               {history.length === 0 ? <p className="text-sm text-slate-500">No local history yet.</p> : null}
               {history.slice(0, 3).map((item) => (
-                <button key={item.id} onClick={() => router.push(`/sim?state=${encodeSimulation(item.config, item.prompt)}`)} className="block w-full rounded-md bg-white p-3 text-left text-sm font-semibold text-slate-700 hover:text-[#216869]">
+                <button key={item.id} onClick={() => router.push(\`/sim?state=\${encodeSimulation(item.config, item.prompt)}\`)} className="block w-full rounded-md bg-white p-3 text-left text-sm font-semibold text-slate-700 hover:text-[#216869]">
                   {item.prompt}
                 </button>
               ))}

@@ -71,17 +71,21 @@ function forceArrowLength(force: number, referenceForce: number, min = 34, max =
   return clamp((force / referenceForce) * max, min, max);
 }
 
+function arrowMarkerSize(length: number) {
+  return clamp(length * 0.12, 4.5, 7);
+}
+
 function atwoodValidation(config: SimulationConfig) {
   const keys = ["mass1", "mass2", "friction", "distance"];
   return keys.filter((key) => typeof config.params[key] !== "number" || !Number.isFinite(config.params[key]) || (key !== "friction" && config.params[key] <= 0));
 }
 
 function atwoodMetrics(config: SimulationConfig) {
-  const mass1 = config.params.mass1;
-  const mass2 = config.params.mass2;
-  const friction = config.params.friction;
-  const distance = config.params.distance;
-  const gravity = config.world.gravity;
+  const mass1 = clamp(config.params.mass1, 0.5, 10);
+  const mass2 = clamp(config.params.mass2, 0.5, 10);
+  const friction = clamp(config.params.friction, 0, 0.9);
+  const distance = clamp(config.params.distance, 1, 5);
+  const gravity = clamp(config.world.gravity, 1, 20);
   const frictionForce = friction * mass1 * gravity;
   const drivingForce = mass2 * gravity - frictionForce;
   const moves = drivingForce > 0;
@@ -113,33 +117,63 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
   const frameRef = useRef<number | null>(null);
 
   const rampLength = 410;
-  const bottom = { x: 615, y: 418 };
-  const top = {
-    x: bottom.x - rampLength * Math.cos(metrics.theta),
-    y: bottom.y - rampLength * Math.sin(metrics.theta),
+  const rawBottom = { x: 520, y: 330 };
+  const rawTop = {
+    x: rawBottom.x - rampLength * Math.cos(metrics.theta),
+    y: rawBottom.y - rampLength * Math.sin(metrics.theta),
   };
   const downRamp = { x: Math.cos(metrics.theta), y: Math.sin(metrics.theta) };
   const normalDir = { x: Math.sin(metrics.theta), y: -Math.cos(metrics.theta) };
   // Scale travel pixels by distance so block stops earlier for shorter distances (max slider = 5 m = full ramp)
-  const maxBlockTravel = clamp((metrics.distance / 5) * rampLength, 0, rampLength * 0.96);
-  const blockTravel = maxBlockTravel * clamp(progress, 0, 1);
-  const blockCenter = {
-    x: top.x + downRamp.x * blockTravel + normalDir.x * 22,
-    y: top.y + downRamp.y * blockTravel + normalDir.y * 22,
+  const maxBlockTravel = Math.min((metrics.distance / 5) * rampLength, rampLength * 0.96);
+  const blockTravel = maxBlockTravel * Math.min(Math.max(progress, 0), 1);
+  const rawBlockCenter = {
+    x: rawTop.x + downRamp.x * blockTravel + normalDir.x * 22,
+    y: rawTop.y + downRamp.y * blockTravel + normalDir.y * 22,
   };
-  const blockTransform = `translate(${blockCenter.x} ${blockCenter.y}) rotate(${metrics.angle})`;
+  };
   const maxInclinedForce = Math.max(metrics.mass * metrics.gravity, metrics.normal, metrics.frictionForce, metrics.gravityComponent);
   const gravityLen = forceArrowLength(metrics.mass * metrics.gravity, maxInclinedForce);
   const normalLen = forceArrowLength(metrics.normal, maxInclinedForce);
   const frictionLen = forceArrowLength(metrics.frictionForce, maxInclinedForce);
   const componentLen = forceArrowLength(metrics.gravityComponent, maxInclinedForce);
-  const gravityArrow = arrowPoints(blockCenter.x - 6, blockCenter.y - 4, 0, gravityLen);
-  const normalArrow = arrowPoints(blockCenter.x + normalDir.x * 4, blockCenter.y + normalDir.y * 4, normalDir.x * normalLen, normalDir.y * normalLen);
-  const frictionArrow = arrowPoints(blockCenter.x - normalDir.x * 34, blockCenter.y - normalDir.y * 34, -downRamp.x * frictionLen, -downRamp.y * frictionLen);
-  const componentArrow = arrowPoints(blockCenter.x + normalDir.x * 42, blockCenter.y + normalDir.y * 42, downRamp.x * componentLen, downRamp.y * componentLen);
+  const gravityArrow = arrowPoints(rawBlockCenter.x - 6, rawBlockCenter.y - 4, 0, gravityLen);
+  const normalArrow = arrowPoints(rawBlockCenter.x + normalDir.x * 4, rawBlockCenter.y + normalDir.y * 4, normalDir.x * normalLen, normalDir.y * normalLen);
+  const frictionArrow = arrowPoints(rawBlockCenter.x - normalDir.x * 34, rawBlockCenter.y - normalDir.y * 34, -downRamp.x * frictionLen, -downRamp.y * frictionLen);
+  const componentArrow = arrowPoints(rawBlockCenter.x + normalDir.x * 42, rawBlockCenter.y + normalDir.y * 42, downRamp.x * componentLen, downRamp.y * componentLen);
+  const scenePoints = [
+    rawTop,
+    rawBottom,
+    { x: rawTop.x, y: rawBottom.y },
+    { x: rawBlockCenter.x - 54, y: rawBlockCenter.y - 44 },
+    { x: rawBlockCenter.x + 54, y: rawBlockCenter.y + 44 },
+    { x: gravityArrow.x1, y: gravityArrow.y1 },
+    { x: gravityArrow.x2, y: gravityArrow.y2 },
+    { x: normalArrow.x1, y: normalArrow.y1 },
+    { x: normalArrow.x2, y: normalArrow.y2 },
+    { x: frictionArrow.x1, y: frictionArrow.y1 },
+    { x: frictionArrow.x2, y: frictionArrow.y2 },
+    { x: componentArrow.x1, y: componentArrow.y1 },
+    { x: componentArrow.x2, y: componentArrow.y2 },
+  ];
+  const bounds = scenePoints.reduce(
+    (box, point) => ({
+      minX: Math.min(box.minX, point.x),
+      maxX: Math.max(box.maxX, point.x),
+      minY: Math.min(box.minY, point.y),
+      maxY: Math.max(box.maxY, point.y),
+    }),
+    { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
+  );
+  const centerOffset = {
+    x: WIDTH / 2 - (bounds.minX + bounds.maxX) / 2,
+    y: HEIGHT / 2 - (bounds.minY + bounds.maxY) / 2,
+  };
+  const systemTransform = `translate(${centerOffset.x.toFixed(2)} ${centerOffset.y.toFixed(2)})`;
+  const blockTransform = `translate(${rawBlockCenter.x} ${rawBlockCenter.y}) rotate(${metrics.angle})`;
   const activeArrowClass = "animate-pulse drop-shadow-[0_0_8px_rgba(242,193,78,0.95)]";
 
-  const arrowStyle = (active: boolean) => ({ opacity: active ? 1 : running ? 0.22 : 0.42, strokeWidth: active ? 6 : 4 });
+  const arrowStyle = (active: boolean) => ({ opacity: active ? 1 : running ? 0.22 : 0.42, strokeWidth: active ? 5 : 3.5 });
   const labelStyle = (active: boolean) => ({ opacity: active ? 1 : running ? 0.24 : 0.56, fontSize: active ? 17 : 15 });
 
   const stepCopy = [
@@ -254,40 +288,52 @@ function InclinedPlaneScene({ config, onOutcome }: Props) {
       <div className="relative overflow-hidden rounded-md border border-slate-200 bg-[#eef5f1]">
         <svg className="aspect-[1.46] w-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Inclined plane physics visualization">
           <defs>
-            <marker id="arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
-              <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" />
-            </marker>
+            {[
+              ["incline-gravity", gravityLen],
+              ["incline-normal", normalLen],
+              ["incline-friction", frictionLen],
+              ["incline-component", componentLen],
+            ].map(([id, len]) => {
+              const size = arrowMarkerSize(Number(len));
+              return (
+                <marker key={String(id)} id={String(id)} markerHeight={size} markerWidth={size} orient="auto" refX={size - 0.8} refY={size / 2}>
+                  <path d={`M0,0 L${size},${size / 2} L0,${size} Z`} fill="currentColor" />
+                </marker>
+              );
+            })}
           </defs>
           <rect width={WIDTH} height={HEIGHT} fill="#eef5f1" />
-          <path d={`M ${top.x} ${top.y} L ${bottom.x} ${bottom.y} L ${top.x} ${bottom.y} Z`} fill="#dfe8e4" stroke="#172033" strokeWidth="4" />
-          <path d={`M ${top.x} ${top.y} L ${bottom.x} ${bottom.y}`} stroke="#172033" strokeWidth="8" strokeLinecap="round" />
-          <path d={`M ${bottom.x - 92} ${bottom.y} A 92 92 0 0 0 ${bottom.x - 92 * Math.cos(metrics.theta)} ${bottom.y - 92 * Math.sin(metrics.theta)}`} fill="none" stroke="#f2c14e" strokeWidth="5" />
-          <text x={bottom.x - 132} y={bottom.y + 34} fill="#172033" fontSize="18" fontWeight="700">θ = {fmt(metrics.angle, 1)}°</text>
+          <g transform={systemTransform}>
+          <path d={`M ${rawTop.x} ${rawTop.y} L ${rawBottom.x} ${rawBottom.y} L ${rawTop.x} ${rawBottom.y} Z`} fill="#dfe8e4" stroke="#172033" strokeWidth="4" />
+          <path d={`M ${rawTop.x} ${rawTop.y} L ${rawBottom.x} ${rawBottom.y}`} stroke="#172033" strokeWidth="8" strokeLinecap="round" />
+          <path d={`M ${rawBottom.x - 92} ${rawBottom.y} A 92 92 0 0 0 ${rawBottom.x - 92 * Math.cos(metrics.theta)} ${rawBottom.y - 92 * Math.sin(metrics.theta)}`} fill="none" stroke="#f2c14e" strokeWidth="5" />
+          <text x={rawBottom.x - 132} y={rawBottom.y + 34} fill="#172033" fontSize="18" fontWeight="700">θ = {fmt(metrics.angle, 1)}°</text>
 
           <g transform={blockTransform}>
             <rect x="-38" y="-24" width="76" height="48" rx="6" fill="#216869" />
             <rect x="-29" y="-15" width="58" height="30" rx="4" fill="#2e8b88" />
           </g>
 
-          <g className={highlights.gravity ? activeArrowClass : ""} color="#c2410c" stroke="currentColor" markerEnd="url(#arrow)" style={arrowStyle(highlights.gravity)}>
+          <g className={highlights.gravity ? activeArrowClass : ""} color="#c2410c" stroke="currentColor" markerEnd="url(#incline-gravity)" style={arrowStyle(highlights.gravity)}>
             <line {...gravityArrow} />
           </g>
           <text x={gravityArrow.x2 + 12} y={gravityArrow.y2 - 2} fill="#9a3412" fontWeight="700" style={labelStyle(highlights.gravity)}>mg</text>
 
-          <g className={highlights.normal ? activeArrowClass : ""} color="#1d4ed8" stroke="currentColor" markerEnd="url(#arrow)" style={arrowStyle(highlights.normal)}>
+          <g className={highlights.normal ? activeArrowClass : ""} color="#1d4ed8" stroke="currentColor" markerEnd="url(#incline-normal)" style={arrowStyle(highlights.normal)}>
             <line {...normalArrow} />
           </g>
           <text x={normalArrow.x2 + 10} y={normalArrow.y2 - 8} fill="#1d4ed8" fontWeight="700" style={labelStyle(highlights.normal)}>N</text>
 
-          <g className={highlights.friction ? activeArrowClass : ""} color="#7c3aed" stroke="currentColor" markerEnd="url(#arrow)" style={arrowStyle(highlights.friction)}>
+          <g className={highlights.friction ? activeArrowClass : ""} color="#7c3aed" stroke="currentColor" markerEnd="url(#incline-friction)" style={arrowStyle(highlights.friction)}>
             <line {...frictionArrow} />
           </g>
           <text x={frictionArrow.x2 - 72} y={frictionArrow.y2 - 12} fill="#6d28d9" fontWeight="700" style={labelStyle(highlights.friction)}>friction</text>
 
-          <g className={highlights.component ? activeArrowClass : ""} color="#15803d" stroke="currentColor" markerEnd="url(#arrow)" style={arrowStyle(highlights.component)}>
+          <g className={highlights.component ? activeArrowClass : ""} color="#15803d" stroke="currentColor" markerEnd="url(#incline-component)" style={arrowStyle(highlights.component)}>
             <line {...componentArrow} />
           </g>
           <text x={componentArrow.x2 + 8} y={componentArrow.y2 + 18} fill="#166534" fontWeight="700" style={labelStyle(highlights.component)}>mg sin θ</text>
+          </g>
         </svg>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -420,14 +466,65 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [guidedStep, setGuidedStep] = useState(1);
   const frameRef = useRef<number | null>(null);
+  const progressRef = useRef(0);
+  progressRef.current = progress;
+  const metricMass1 = metrics?.mass1;
+  const metricMass2 = metrics?.mass2;
+  const metricFriction = metrics?.friction;
+  const metricGravity = metrics?.gravity;
+  const metricDistance = metrics?.distance;
+  const metricAcceleration = metrics?.acceleration;
+  const metricTension = metrics?.tension;
+  const metricTimeToBottom = metrics?.timeToBottom;
+  const metricFinalSpeed = metrics?.finalSpeed;
+  const metricMoves = metrics?.moves;
 
   useEffect(() => {
-    setProgress(0);
-    setCurrentSpeed(0);
-    setRunning(false);
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    onOutcome({ launched: false, success: false, metrics: {} });
-  }, [config, onOutcome]);
+    setRunning(false);
+
+    if (
+      metricMass1 === undefined ||
+      metricMass2 === undefined ||
+      metricFriction === undefined ||
+      metricGravity === undefined ||
+      metricDistance === undefined ||
+      metricAcceleration === undefined ||
+      metricTension === undefined ||
+      metricFinalSpeed === undefined ||
+      metricMoves === undefined
+    ) {
+      setProgress(0);
+      setCurrentSpeed(0);
+      onOutcome({ launched: false, success: false, metrics: {} });
+      return;
+    }
+
+    const liveSpeed = metricMoves ? Math.sqrt(2 * metricAcceleration * metricDistance * progressRef.current) : 0;
+    setCurrentSpeed(liveSpeed);
+    onOutcome({
+      launched: true,
+      success: metricMoves,
+      metrics: {
+        acceleration: metricAcceleration,
+        tension: metricTension,
+        timeToBottom: metricTimeToBottom ?? 0,
+        finalSpeed: metricFinalSpeed,
+      },
+    });
+  }, [
+    metricMass1,
+    metricMass2,
+    metricFriction,
+    metricGravity,
+    metricDistance,
+    metricAcceleration,
+    metricTension,
+    metricTimeToBottom,
+    metricFinalSpeed,
+    metricMoves,
+    onOutcome,
+  ]);
 
   const run = useCallback(() => {
     if (!metrics) return;
@@ -728,15 +825,16 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
   const frameRef = useRef<number | null>(null);
 
   const GY = 430; const LX = 80; const TW = 600; const TH = 310;
-  const maxX = Math.max(metrics.range, 1);
+  const visibleRange = Math.max(30, Math.ceil(metrics.range / 10) * 10);
   const maxY = Math.max(metrics.peakHeight, metrics.h0, 1);
   const toSVG = (x_m: number, y_m: number) => ({
-    x: LX + clamp(x_m / maxX, 0, 1) * TW,
+    x: LX + clamp(x_m / visibleRange, 0, 1) * TW,
     y: GY - clamp(y_m / maxY, 0, 1.08) * TH,
   });
   const t_now = progress * metrics.tof;
   const currentHeight = Math.max(0, metrics.h0 + metrics.vy * t_now - 0.5 * metrics.gravity * t_now * t_now);
   const ballSVG = toSVG(metrics.vx * t_now, currentHeight);
+  const landingPoint = toSVG(metrics.range, 0);
   const pathPts = Array.from({ length: 51 }, (_, i) => {
     const t = (i / 50) * metrics.tof;
     const s = toSVG(metrics.vx * t, Math.max(0, metrics.h0 + metrics.vy * t - 0.5 * metrics.gravity * t * t));
@@ -779,12 +877,18 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
   const theta_r = (metrics.angle * Math.PI) / 180;
   const vxEnd = { x: launchPoint.x + (metrics.vx / metrics.speed) * AL, y: launchPoint.y };
   const vyEnd = { x: launchPoint.x, y: launchPoint.y - (metrics.vy / metrics.speed) * AL };
+  const liveVy = metrics.vy - metrics.gravity * t_now;
+  const liveSpeed = Math.hypot(metrics.vx, liveVy) || 1;
+  const velocityVector = {
+    x2: ballSVG.x + (metrics.vx / liveSpeed) * 58,
+    y2: ballSVG.y - (liveVy / liveSpeed) * 58,
+  };
 
   const stepCopy = [
     { title: "Launch Conditions", equation: `v₀ = ${fmt(metrics.speed)} m/s at θ = ${metrics.angle}°`, notice: "Launch angle and speed fully determine the trajectory when air resistance is zero.", diagram: "The gold arrow shows the initial velocity vector at the launch point." },
     { title: "Velocity Components", equation: `vₓ = ${fmt(metrics.vx)} m/s,  vᵧ = ${fmt(metrics.vy)} m/s`, notice: "Horizontal velocity stays constant. Vertical velocity decreases at g until peak, then increases downward.", diagram: "Blue = vₓ (constant horizontal), red = vᵧ (decreasing vertical component)." },
     { title: "Equations of Motion", equation: "x = vₓt,  y = h₀ + vᵧt - ½gt²", notice: "The two axes are completely independent. The parabolic shape comes from constant vₓ and linearly changing vᵧ.", diagram: "The dashed arc shows the full parabolic trajectory from launch to landing." },
-    { title: "Flight and Landing", equation: `R = ${fmt(metrics.range)} m,  h_peak = ${fmt(metrics.peakHeight)} m`, notice: `Peak is at t = ${fmt(metrics.peakTime)} s when vy = 0. Range is maximized at 45° for flat ground.`, diagram: "Watch the ball arc. Speed is scaled for visibility — actual physics time is " + fmt(metrics.tof) + " s." },
+    { title: "Flight and Landing", equation: `R = ${fmt(metrics.range)} m,  hₚₑₐₖ = ${fmt(metrics.peakHeight)} m`, notice: `Peak is at t = ${fmt(metrics.peakTime)} s when vᵧ = 0. Range is maximized at 45° for flat ground.`, diagram: `The horizontal scale shows ${fmt(visibleRange, 0)} m across the field, so short shots land closer and long shots fit.` },
   ][guidedStep - 1];
 
   return (
@@ -804,13 +908,14 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
           <circle cx={ballSVG.x} cy={ballSVG.y} r="14" fill="#216869" stroke="#172033" strokeWidth="3" />
           {metrics.range > 0 && (
             <>
-              <line x1={LX + TW} y1={GY - 28} x2={LX + TW} y2={GY + 12} stroke="#f2c14e" strokeWidth="3" />
-              <text x={LX + TW - 66} y={GY + 30} fill="#172033" fontSize="13" fontWeight="700">R = {fmt(metrics.range)} m</text>
+              <line x1={landingPoint.x} y1={GY - 28} x2={landingPoint.x} y2={GY + 12} stroke="#f2c14e" strokeWidth="3" />
+              <line x1={launchPoint.x} y1={GY + 16} x2={landingPoint.x} y2={GY + 16} stroke="#f2c14e" strokeWidth="3" markerEnd="url(#pm-arr)" />
+              <text x={Math.max(LX + 8, landingPoint.x - 74)} y={GY + 36} fill="#172033" fontSize="13" fontWeight="700">R = {fmt(metrics.range)} m</text>
             </>
           )}
-          {(guidedStep === 1 || !running) && (
+          {guidedStep !== 2 && (
             <g color="#f2c14e" stroke="currentColor" markerEnd="url(#pm-arr)" strokeWidth="5" className="animate-pulse drop-shadow-[0_0_8px_rgba(242,193,78,0.9)]">
-              <line x1={launchPoint.x} y1={launchPoint.y} x2={launchPoint.x + Math.cos(theta_r) * AL} y2={launchPoint.y - Math.sin(theta_r) * AL} />
+              <line x1={ballSVG.x} y1={ballSVG.y} x2={velocityVector.x2} y2={velocityVector.y2} />
             </g>
           )}
           {guidedStep === 2 && (
@@ -824,6 +929,7 @@ function ProjectileMotionScene({ config, onOutcome }: Props) {
           <path d={`M ${launchPoint.x + 46} ${launchPoint.y} A 46 46 0 0 0 ${launchPoint.x + 46 * Math.cos(theta_r)} ${launchPoint.y - 46 * Math.sin(theta_r)}`} fill="none" stroke="#f2c14e" strokeWidth="4" />
           <text x={launchPoint.x + 52} y={launchPoint.y - 8} fill="#172033" fontSize="13" fontWeight="700">θ={metrics.angle}°</text>
           <text x={launchPoint.x - 8} y={launchPoint.y - 42} textAnchor="end" fill="#475569" fontSize="12" fontWeight="700">h₀ = {fmt(metrics.h0, 1)} m</text>
+          <text x={WIDTH - 24} y={GY + 36} textAnchor="end" fill="#64748b" fontSize="12" fontWeight="700">field width = {fmt(visibleRange, 0)} m</text>
         </svg>
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
@@ -928,7 +1034,7 @@ function PendulumScene({ config, onOutcome }: Props) {
 
   const stepCopy = [
     { title: "Pendulum Setup", equation: `L = ${fmt(metrics.L_m, 2)} m,  m = ${fmt(metrics.mass, 1)} kg,  θ₀ = ${metrics.initialAngle}°`, notice: "Only the string length and initial angle (and gravity) determine the period — not the mass.", diagram: "The pendulum starts at angle θ₀ from vertical. The arm length L is shown to scale." },
-    { title: "Forces on the Bob", equation: "T − mg cosθ = mv²/L  (radial),  mg sinθ = ma_t  (tangential)", notice: "Tension provides centripetal force. The tangential component of gravity drives the restoring acceleration.", diagram: "Tension arrow points up the string toward the pivot; gravity arrow points straight down." },
+    { title: "Forces on the Bob", equation: "T − mg cosθ = mv²/L  (radial),  mg sinθ = maₜ  (tangential)", notice: "Tension provides centripetal force. The tangential component of gravity drives the restoring acceleration.", diagram: "Tension arrow points up the string toward the pivot; gravity arrow points straight down." },
     { title: "SHM Approximation", equation: `ω = √(g/L) = ${fmt(metrics.omega, 3)} rad/s,  T = 2π/ω = ${fmt(metrics.period, 3)} s`, notice: "For small angles (< ~15°) the motion is simple harmonic. For larger angles the period increases slightly.", diagram: "The angle arc shows θ₀. Notice period depends only on L and g, not mass." },
     { title: "Oscillation", equation: `θ(t) = θ₀ cos(ωt),  v_max = ${fmt(metrics.maxSpeed, 2)} m/s`, notice: `Max speed occurs at the bottom. The bob gains ${fmt(metrics.maxHeight, 3)} m of kinetic energy converting from potential energy.`, diagram: "Watch the bob swing continuously. The period remains constant for a given L and g." },
   ][guidedStep - 1];
@@ -1243,8 +1349,8 @@ function FreeFallScene({ config, onOutcome }: Props) {
   const stepCopy = [
     { title: "Setup", equation: `h = ${fmt(metrics.h, 1)} m,  m = ${fmt(metrics.mass, 1)} kg,  g = ${fmt(metrics.gravity, 1)} m/s²`, notice: "In free fall (no air resistance), all objects fall at the same rate regardless of mass. Galileo's insight.", diagram: "The ball starts at height h. The dashed line shows the drop distance to the ground." },
     { title: "Forces", equation: metrics.k === 0 ? "Only gravity: F = mg (net force, no drag)" : `F_net = mg − kv  (drag coefficient k = ${fmt(metrics.k, 3)})`, notice: metrics.k === 0 ? "Without air resistance, acceleration is constant at g throughout the fall." : "Air resistance grows with speed, gradually reducing the net downward force.", diagram: "The red arrow shows the net downward force. It grows if there is air resistance as speed increases." },
-    { title: "Kinematics", equation: "v² = 2gh  →  v_impact = √(2gh)", notice: `Using energy: mgh = ½mv² cancels mass, giving v = ${fmt(metrics.vImpact, 2)} m/s regardless of m (vacuum).`, diagram: "The height label shows h in meters. The impact speed comes purely from the drop height and gravity." },
-    { title: "Free Fall", equation: `t = √(2h/g) = ${fmt(metrics.tof, 2)} s,  v_impact = ${fmt(metrics.vImpact, 2)} m/s`, notice: "The velocity arrow grows linearly with time in vacuum. With drag it grows slower as air resistance builds up.", diagram: "Watch the red arrow lengthen as the ball accelerates downward." },
+    { title: "Kinematics", equation: "v² = 2gh  →  impact speed = √(2gh)", notice: `Using energy: mgh = ½mv² cancels mass, giving v = ${fmt(metrics.vImpact, 2)} m/s regardless of m (vacuum).`, diagram: "The height label shows h in meters. The impact speed comes purely from the drop height and gravity." },
+    { title: "Free Fall", equation: `t = √(2h/g) = ${fmt(metrics.tof, 2)} s,  impact speed = ${fmt(metrics.vImpact, 2)} m/s`, notice: "The velocity arrow grows linearly with time in vacuum. With drag it grows slower as air resistance builds up.", diagram: "Watch the red arrow lengthen as the ball accelerates downward." },
   ][guidedStep - 1];
 
   return (
@@ -1297,7 +1403,7 @@ function FreeFallScene({ config, onOutcome }: Props) {
           <div className="mt-3 grid gap-4 text-sm text-slate-700 md:grid-cols-[0.85fr_1.3fr_0.85fr]">
             <div><div className="font-bold text-slate-900">Given</div><p className="mt-1 leading-6">h = {fmt(metrics.h, 1)} m<br />m = {fmt(metrics.mass, 1)} kg<br />g = {fmt(metrics.gravity, 1)} m/s²<br />k = {fmt(metrics.k, 3)}</p></div>
             <div><div className="font-bold text-slate-900">Equations</div><p className="mt-1 leading-6">v² = 2gh<br />t = √(2h/g)<br />v = gt  (vacuum)<br />F = mg − kv (drag)</p></div>
-            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">t = {fmt(metrics.tof, 2)} s<br />v_impact = {fmt(metrics.vImpact, 2)} m/s</p></div>
+            <div><div className="font-bold text-slate-900">Results</div><p className="mt-1 leading-6">t = {fmt(metrics.tof, 2)} s<br />impact speed = {fmt(metrics.vImpact, 2)} m/s</p></div>
           </div>
         </section>
         <section className="rounded-md border border-slate-200 bg-white p-4">
