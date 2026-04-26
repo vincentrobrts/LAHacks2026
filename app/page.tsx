@@ -14,7 +14,7 @@ const HISTORY_KEY = "physics-visualizer-history";
 const EXAMPLE_PROMPTS = [
   "A 5 kg block slides down a 30 degree incline with μₖ = 0.2 for 3 meters.",
   "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
-  "Problem: Two point charges are placed 2 meters apart. Charge 1: +3 μC. Charge 2: −2 μC. Question: What is the magnitude of the force between them? Is the force attractive or repulsive?",
+  "A 9V battery with internal resistance 0.5 Ω is connected to a 10 Ω resistor. Find the current through the circuit and the power dissipated.",
 ];
 
 const ATWOOD_PROMPT = EXAMPLE_PROMPTS[1];

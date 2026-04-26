@@ -152,11 +152,19 @@ export function parsePhysicsPrompt(prompt: string): SimulationConfig | null {
       set("separation", matchNumber(lower, [/\b(\d+(?:\.\d+)?)\s*(?:m|meter|meters)\s+apart\b/, /\bdistance\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/]) ?? (charges.length ? meterValues[0] : undefined), 0, 100000);
       break;
     }
-    case "ohm_law":
+    case "ohm_law": {
       set("voltage", matchNumber(lower, [/\b(\d+(?:\.\d+)?)\s*(?:v|volt|volts)\b/, /\b(?:voltage|battery|emf)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/]), 0, 100000);
-      set("resistance", matchNumber(lower, [/\b(\d+(?:\.\d+)?)\s*(?:ohm|ohms)\b/, /\bresistan(?:ce|t)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/]), 0, 100000);
-      set("internal_resistance", matchNumber(lower, [/\binternal resistance\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/]) ?? 0, 0, 100000);
+      set("internal_resistance", matchNumber(lower, [/\binternal\s+resistance\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/]) ?? 0, 0, 100000);
+      // Strip "internal resistance X ohms" so the first bare "X ohms" match finds the external resistor
+      const externalLower = lower.replace(/\binternal\s+resistance\s*(?:=|is|of)?\s*\d+(?:\.\d+)?\s*(?:ohm|ohms)?\b/gi, "");
+      set("resistance", matchNumber(externalLower, [
+        /\b(\d+(?:\.\d+)?)\s*(?:ohm|ohms)\s+resistor\b/,
+        /\bresistor\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*(?:ohm|ohms)?\b/,
+        /\b(\d+(?:\.\d+)?)\s*(?:ohm|ohms)\b/,
+        /\bexternal\s+resistan(?:ce|t)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/,
+      ]), 0, 100000);
       break;
+    }
     case "bernoulli":
       set("v1", matchNumber(lower, [/\bvelocity\s*(?:increases|changes)?\s*from\s*(\d+(?:\.\d+)?)/]) ?? speeds[0], 0, 10000);
       set("v2", matchNumber(lower, [/\bto\s*(\d+(?:\.\d+)?)\s*(?:m\/s|meters?\s+per\s+second)\b/]) ?? speeds[1], 0, 10000);

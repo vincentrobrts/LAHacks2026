@@ -725,10 +725,6 @@ function AtwoodTableScene({ config, onOutcome, onLoadAtwoodExample }: Props) {
             </>
           ) : null}
 
-          <g className={highlights.motion ? activeArrowClass : ""} color="#0f766e" stroke="currentColor" markerEnd="url(#atwood-arrow)" style={active(highlights.motion)}>
-            <line x1={blockX - 18} y1={tableTop + 54} x2={blockX + 82} y2={tableTop + 54} />
-            <line x1={hangingX + hangingWidth + 22} y1={hangingY - 16} x2={hangingX + hangingWidth + 22} y2={hangingY + 84} />
-          </g>
         </svg>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">

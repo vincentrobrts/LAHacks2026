@@ -178,6 +178,15 @@ function isCompoundNeeded(text: string): boolean {
     (t.match(/\d+(?:\.\d+)?\s*(?:ohm|Ω|ω)/gi) ?? []).length >= 2 ||
     (t.match(/\br\d+\b/g) ?? []).length >= 2 ||
     (t.match(/\bresist/g) ?? []).length >= 2;
+
+  // table + pulley + hanging mass = atomic atwood_table, not compound
+  const isAtwoodTable =
+    /\b(table|surface|horizontal)\b/.test(t) &&
+    hasPulley &&
+    multiKg &&
+    !/\bramp\b|\bincline\b|\bslope\b|\bspring\b/.test(t);
+  if (isAtwoodTable) return false;
+
   return (
     (hasPulley && multiKg) ||
     (hasPulley && /\bramp\b|\bincline\b|\bslope\b/.test(t)) ||
