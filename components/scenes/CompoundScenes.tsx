@@ -111,21 +111,19 @@ function Spring({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: nu
 }
 
 // Emboldened Arrow Component
-function Arrow({ x, y, dx, dy, color, label, marker }: {
+function Arrow({ x, y, dx, dy, color, label, marker, maxLen }: {
   x: number; y: number; dx: number; dy: number; color: string; label: string; marker: string;
+  maxLen?: number;
 }) {
-  // Apply the 1.5x visual multiplier
-  const visualMultiplier = 1.5;
-  const sDx = dx * visualMultiplier;
-  const sDy = dy * visualMultiplier;
+  const MAX = maxLen ?? 65;
+  const rawLen = Math.sqrt(dx * dx + dy * dy);
+  if (rawLen < 4) return null;
+  const scale = Math.min(1, MAX / rawLen);
+  const sDx = dx * scale;
+  const sDy = dy * scale;
+  const ux = sDx / (rawLen * scale);
+  const uy = sDy / (rawLen * scale);
 
-  const len = Math.sqrt(sDx * sDx + sDy * sDy);
-  if (len < 4) return null; // Don't draw tiny near-zero arrows
-  
-  // Calculate unit vector to push text a fixed distance past the arrowhead
-  const ux = sDx / len;
-  const uy = sDy / len;
-  
   return (
     <g>
       <line x1={x} y1={y} x2={x + sDx} y2={y + sDy}
@@ -143,8 +141,8 @@ function SceneDefs({ gradId, prefix }: { gradId: string; prefix: string }) {
         <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#dce8e2" strokeWidth="1" />
       </pattern>
       <radialGradient id={gradId} cx="40%" cy="35%" r="60%">
-        <stop offset="0%" stopColor="#451a03" />
-        <stop offset="100%" stopColor="#d97706" />
+        <stop offset="0%" stopColor="#fef9ee" />
+        <stop offset="100%" stopColor="#fde68a" />
       </radialGradient>
       
       {/* Smaller Arrowhead Markers (Dark mode palette) */}
