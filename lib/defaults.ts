@@ -1,6 +1,6 @@
 import type { SimulationConfig, SimulationType } from "@/types/simulation";
 
-export const DEFAULT_PROMPT = "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.";
+export const DEFAULT_PROMPT = "A 5 kg block slides down a 30 degree incline with μₖ = 0.2 for 3 meters.";
 
 export const DEFAULT_CONFIGS: Record<SimulationType, SimulationConfig> = {
   projectile_motion: {

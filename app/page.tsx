@@ -11,7 +11,7 @@ import type { SimulationHistoryItem } from "@/types/simulation";
 const HISTORY_KEY = "physics-visualizer-history";
 
 const EXAMPLE_PROMPTS = [
-  "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
+  "A 5 kg block slides down a 30 degree incline with μₖ = 0.2 for 3 meters.",
   "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
   "Problem: Two point charges are placed 2 meters apart. Charge 1: +3 μC. Charge 2: −2 μC. Question: What is the magnitude of the force between them? Is the force attractive or repulsive?",
 ];
@@ -97,8 +97,6 @@ export default function Home() {
                 <text x="34" y="74" fill="#475569" fontSize="14">m = 5 kg, μₖ = 0.2, d = 3 m</text>
                 <path d="M74 306 L356 306 L356 144 Z" fill="#dfe8e4" stroke="#172033" strokeWidth="5" />
                 <path d="M74 306 L356 144" stroke="#172033" strokeWidth="8" strokeLinecap="round" />
-                <path d="M278 306 A78 78 0 0 0 288.4 267.1" fill="none" stroke="#f2c14e" strokeWidth="5" />
-                <text x="252" y="292" fill="#172033" fontSize="16" fontWeight="800">30°</text>
                 <g transform="translate(205 205)">
                   <g>
                     <animateTransform attributeName="transform" type="translate" values="0 0; -7 4; 0 0" dur="3.2s" repeatCount="indefinite" />

@@ -15,7 +15,7 @@ import type { LaunchOutcome, SimulationConfig, SimulationHistoryItem } from "@/t
 const HISTORY_KEY = "physics-visualizer-history";
 const PROMPT_HELP_MESSAGE = "Intuify couldn’t confidently build a visualization from that prompt yet. Try one of the examples below.";
 const EXAMPLE_PROMPTS = [
-  "A 5 kg block slides down a 30 degree incline with μk = 0.2 for 3 meters.",
+  "A 5 kg block slides down a 30 degree incline with μₖ = 0.2 for 3 meters.",
   "A 4 kg block rests on a frictionless table and is connected over a pulley to a hanging 2 kg mass. How fast does the system accelerate if the hanging mass falls 3 meters?",
   "Problem: Two point charges are placed 2 meters apart. Charge 1: +3 μC. Charge 2: −2 μC. Question: What is the magnitude of the force between them? Is the force attractive or repulsive?",
 ];
@@ -144,6 +144,20 @@ function paramLabel(type: string, key: string) {
 function sliderRange(type: string, key: string) {
   if (type === "free_fall" && key === "mass") return { min: 0.1, max: 25, step: 0.1 };
   return SLIDER_RANGES[key] ?? { min: 0, max: 20, step: 0.1 };
+}
+
+function metricLabel(key: string) {
+  const labels = {
+    fc: <>F<sub>c</sub></>,
+    ac: <>a<sub>c</sub></>,
+    omega: <>ω</>,
+    range_m: <>range</>,
+    peak_height_m: <>peak height</>,
+    time_of_flight_s: <>time of flight</>,
+    final_speed_m_s: <>final speed</>,
+    q1q2_force_n: <>q<sub>1</sub>q<sub>2</sub> force</>,
+  } as const;
+  return labels[key as keyof typeof labels] ?? key.replace(/m1/g, "m₁").replace(/m2/g, "m₂").replace(/q1/g, "q₁").replace(/q2/g, "q₂").replace(/_/g, " ");
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -468,7 +482,7 @@ export default function SimulationClient() {
                   {Object.entries(outcome.metrics).map(([key, val]) => (
                     <div key={key} className="rounded-md bg-[#216869]/10 p-2">
                       <div className="font-bold">{Number(val).toFixed(2)}</div>
-                      <div className="text-xs text-slate-600">{key.replace(/_/g, " ")}</div>
+                      <div className="text-xs text-slate-600">{metricLabel(key)}</div>
                     </div>
                   ))}
                 </div>

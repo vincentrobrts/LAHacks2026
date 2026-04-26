@@ -18,30 +18,35 @@ function metrics(config: SimulationConfig) {
   return { r, m, v, omega, period, ac, fc };
 }
 
+const omegaText = "\u03c9";
+const aCText = "a\u208dc\u208e";
+const fCText = "F\u208dc\u208e";
+const vSquaredText = "v\u00b2";
+
 const STEPS = [
   {
     title: "Circular Path",
-    equation: "v = ωr",
+    equation: `v = ${omegaText}r`,
     notice: "The ball moves at constant speed, but its direction is always changing, so acceleration exists.",
     diagram: "Watch the ball trace the circular path. The dashed circle marks its fixed orbital radius.",
   },
   {
     title: "Centripetal Acceleration",
-    equation: "a_c = v² / r",
+    equation: `${aCText} = ${vSquaredText} / r`,
     notice: "Centripetal acceleration always points toward the center, perpendicular to velocity.",
     diagram: "The red arrow points from the ball toward the center. That is the centripetal direction.",
   },
   {
     title: "Centripetal Force",
-    equation: "F_c = mv² / r",
+    equation: `${fCText} = m${vSquaredText} / r`,
     notice: "A net inward force is required to maintain circular motion. Without it, the ball would fly outward.",
-    diagram: "The red force arrow magnitude scales with F_c. More speed or smaller radius means larger force.",
+    diagram: `The red force arrow magnitude scales with ${fCText}. More speed or smaller radius means larger force.`,
   },
   {
     title: "Period and Angular Speed",
-    equation: "T = 2πr / v = 2π / ω",
+    equation: `T = 2\u03c0r / v = 2\u03c0 / ${omegaText}`,
     notice: "Faster speed or smaller radius means shorter period, so the ball completes orbits more quickly.",
-    diagram: "Count orbits per second in the animation to see how ω determines the period.",
+    diagram: `Count orbits per second in the animation to see how ${omegaText} determines the period.`,
   },
 ];
 
@@ -129,12 +134,12 @@ export default function CircularMotionScene({ config, onOutcome }: SceneProps) {
             <line x1={bx} y1={by} x2={bx + fcx} y2={by + fcy} />
           </g>
           <text x={bx + fcx * 0.6 + 6} y={by + fcy * 0.6 - 4} fill="#dc2626" fontSize="13" fontWeight="700">
-            F_c = {fmt(m.fc, 1)} N
+            {fCText} = {fmt(m.fc, 1)} N
           </text>
 
           <circle cx={bx} cy={by} r={16} fill="#216869" stroke="#172033" strokeWidth="3" />
           <text x={bx} y={by + 5} textAnchor="middle" fill="white" fontSize="12" fontWeight="800">m</text>
-          <text x={24} y={36} fill="#172033" fontSize="15" fontWeight="700">ω = {fmt(m.omega, 2)} rad/s</text>
+          <text x={24} y={36} fill="#172033" fontSize="15" fontWeight="700">{omegaText} = {fmt(m.omega, 2)} rad/s</text>
           <text x={24} y={60} fill="#172033" fontSize="15" fontWeight="700">T = {fmt(m.period, 2)} s</text>
           <text x={24} y={84} fill="#172033" fontSize="15" fontWeight="700">v = {fmt(m.v, 1)} m/s</text>
         </svg>
@@ -143,12 +148,12 @@ export default function CircularMotionScene({ config, onOutcome }: SceneProps) {
       <GuidedBreakdown step={guidedStep} steps={STEPS} onStepChange={goToStep} />
       <InfoPanels
         given={[["r", `${fmt(m.r, 1)} m`], ["m", `${fmt(m.m, 1)} kg`], ["v", `${fmt(m.v, 1)} m/s`]]}
-        equations={["ω = v/r", "a_c = v²/r", "F_c = ma_c", "T = 2π/ω"]}
+        equations={[`${omegaText} = v/r`, `${aCText} = ${vSquaredText}/r`, `${fCText} = m${aCText}`, `T = 2\u03c0/${omegaText}`]}
         results={[
-          ["Angular speed ω", `${fmt(m.omega, 3)} rad/s`, "green"],
+          [`Angular speed ${omegaText}`, `${fmt(m.omega, 3)} rad/s`, "green"],
           ["Period T", `${fmt(m.period, 3)} s`],
-          ["Centripetal acc a_c", `${fmt(m.ac, 2)} m/s²`],
-          ["Centripetal force F_c", `${fmt(m.fc, 2)} N`, "green"],
+          [`Centripetal acc ${aCText}`, `${fmt(m.ac, 2)} m/s\u00b2`],
+          [`Centripetal force ${fCText}`, `${fmt(m.fc, 2)} N`, "green"],
         ]}
       />
     </div>
