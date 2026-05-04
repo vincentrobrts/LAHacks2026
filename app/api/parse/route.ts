@@ -1,26 +1,11 @@
 import Groq from "groq-sdk";
 import { NextRequest, NextResponse } from "next/server";
-import { DEFAULT_CONFIGS } from "@/lib/defaults";
 import { parsePhysicsPrompt } from "@/lib/parser";
+import { getDefaultConfig, SIMULATION_TYPES } from "@/lib/simulations/registry";
+import { validateSimulationConfig } from "@/lib/simulations/schema";
 import type { SimulationConfig, SimulationType } from "@/types/simulation";
 
-const VALID_TYPES: SimulationType[] = [
-  "projectile_motion",
-  "collision_1d",
-  "pendulum",
-  "inclined_plane",
-  "free_fall",
-  "atwood_table",
-  "spring_mass",
-  "circular_motion",
-  "torque",
-  "electric_field",
-  "ohm_law",
-  "bernoulli",
-  "standing_waves",
-  "bohr_model",
-  "pulley",
-];
+const VALID_TYPES: SimulationType[] = SIMULATION_TYPES;
 
 const SYSTEM_PROMPT = `You are a physics simulation configurator. Given a physics problem or scenario in natural language, identify which supported simulation type best fits, extract the relevant parameters, and output ONLY valid JSON.
 
@@ -48,32 +33,33 @@ Rules:
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-function sanitize(raw: SimulationConfig): SimulationConfig | null {
-  if (!raw || !VALID_TYPES.includes(raw.type)) return null;
-  const defaults = DEFAULT_CONFIGS[raw.type];
+function sanitize(raw: unknown): SimulationConfig | null {
+  const validated = validateSimulationConfig(raw);
+  if (!validated || !VALID_TYPES.includes(validated.type)) return null;
+  const defaults = getDefaultConfig(validated.type);
   const aliases: Record<string, string> = {
-    length: raw.type === "torque" ? "arm_length" : "length",
-    distance: raw.type === "electric_field" ? "separation" : "distance",
+    length: validated.type === "torque" ? "arm_length" : "length",
+    distance: validated.type === "electric_field" ? "separation" : "distance",
     velocity1: "v1",
     velocity2: "v2",
   };
   const params: Record<string, number> = {};
 
-  for (const [rawKey, rawValue] of Object.entries(raw.params ?? {})) {
+  for (const [rawKey, rawValue] of Object.entries(validated.params)) {
     const key = aliases[rawKey] ?? rawKey;
     const value = Number(rawValue);
     if (Number.isFinite(value)) params[key] = value;
   }
 
   return {
-    type: raw.type,
+    type: validated.type,
     params,
     world: {
-      gravity: clamp(Number(raw.world?.gravity) || 9.8, 1, 20),
-      friction: clamp(Number(raw.world?.friction) || 0, 0, 1),
+      gravity: clamp(Number(validated.world.gravity) || 9.8, 1, 20),
+      friction: clamp(Number(validated.world.friction) || 0, 0, 1),
     },
-    explanationGoal: typeof raw.explanationGoal === "string" && raw.explanationGoal
-      ? raw.explanationGoal
+    explanationGoal: validated.explanationGoal
+      ? validated.explanationGoal
       : defaults.explanationGoal,
   };
 }
@@ -89,7 +75,7 @@ export async function POST(req: NextRequest) {
   const localConfig = parsePhysicsPrompt(prompt);
 
   if (localConfig) {
-    return NextResponse.json(localConfig);
+    return NextResponse.json(validateSimulationConfig(localConfig));
   }
 
   if (!apiKey) {
@@ -116,6 +102,6 @@ export async function POST(req: NextRequest) {
     if (process.env.NODE_ENV === "development") {
       console.error("[parse] Groq failed, using regex fallback:", err);
     }
-    return NextResponse.json(parsePhysicsPrompt(prompt));
+    return NextResponse.json(validateSimulationConfig(parsePhysicsPrompt(prompt)));
   }
 }

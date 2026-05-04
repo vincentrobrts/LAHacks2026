@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MatterScene from "@/components/MatterScene";
-import { DEFAULT_CONFIGS, DEFAULT_PROMPT, DEFAULT_SIMULATION, DEMO_SHOT } from "@/lib/defaults";
+import { DEFAULT_PROMPT, DEFAULT_SIMULATION, DEMO_SHOT } from "@/lib/defaults";
 import { buildExplanation } from "@/lib/explanation";
 import { parseWithAgentverse } from "@/lib/agentverse";
 import { normalizePromptText, parsePhysicsPrompt, parserJson } from "@/lib/parser";
 import { decodeSimulation, encodeSimulation } from "@/lib/share";
+import { getControlRange, getDefaultConfig, getParamOrder, getSimulationMetadata, GRAVITY_SIMULATION_TYPES, SIMULATION_TYPES } from "@/lib/simulations/registry";
 import type { LaunchOutcome, SimulationConfig, SimulationHistoryItem, SimulationType } from "@/types/simulation";
 
 const HISTORY_KEY = "physics-visualizer-history";
@@ -35,82 +36,6 @@ const ATWOOD_EXAMPLE: SimulationConfig = {
     friction: 0,
   },
   explanationGoal: "Show how tension and gravity determine the acceleration of a two-mass pulley system.",
-};
-
-const SCENARIO_LABELS: Record<string, string> = {
-  projectile_motion: "Projectile Motion",
-  collision_1d: "1D Collision",
-  pendulum: "Pendulum",
-  inclined_plane: "Inclined Plane",
-  free_fall: "Free Fall",
-  atwood_table: "Atwood Machine",
-  spring_mass: "Spring-Mass",
-  circular_motion: "Circular Motion",
-  torque: "Torque",
-  electric_field: "Electric Field",
-  ohm_law: "Ohm's Law",
-  bernoulli: "Bernoulli Flow",
-  standing_waves: "Standing Waves",
-  bohr_model: "Bohr Model",
-  pulley: "Fixed Pulley",
-};
-
-const GRAVITY_SCENARIOS = new Set(["projectile_motion", "pendulum", "inclined_plane", "free_fall", "atwood_table", "circular_motion", "bernoulli"]);
-
-const PARAM_ORDER: Record<string, string[]> = {
-  projectile_motion: ["angle", "speed", "mass", "initial_height"],
-  collision_1d: ["mass1", "v1", "mass2", "v2", "restitution"],
-  pendulum: ["length", "initial_angle", "mass"],
-  inclined_plane: ["angle", "friction", "mass", "distance"],
-  free_fall: ["height", "mass", "air_resistance"],
-  atwood_table: ["mass1", "mass2", "friction", "distance"],
-  spring_mass: ["spring_constant", "mass", "amplitude"],
-  circular_motion: ["radius", "mass", "speed"],
-  torque: ["force", "arm_length", "mass"],
-  electric_field: ["charge1", "charge2", "charge3", "charge4"],
-  ohm_law: ["voltage", "resistance", "internal_resistance"],
-  bernoulli: ["v1", "area_ratio", "density"],
-  standing_waves: ["tension", "linear_density", "length", "harmonic"],
-  bohr_model: ["atomic_number", "n_initial", "n_final"],
-};
-
-const SLIDER_RANGES: Record<string, { min: number; max: number; step: number }> = {
-  angle: { min: 5, max: 60, step: 0.1 },
-  initial_angle: { min: 1, max: 85, step: 0.1 },
-  speed: { min: 1, max: 40, step: 0.1 },
-  mass: { min: 0.5, max: 10, step: 0.1 },
-  mass1: { min: 0.5, max: 10, step: 0.1 },
-  mass2: { min: 0.5, max: 10, step: 0.1 },
-  friction: { min: 0, max: 0.9, step: 0.01 },
-  distance: { min: 1, max: 5, step: 0.1 },
-  initial_height: { min: 0, max: 400, step: 1 },
-  height: { min: 1, max: 5000, step: 1 },
-  length: { min: 0.2, max: 250, step: 0.1 },
-  v1: { min: -20, max: 20, step: 0.1 },
-  v2: { min: -20, max: 20, step: 0.1 },
-  restitution: { min: 0, max: 1, step: 0.01 },
-  air_resistance: { min: 0, max: 1, step: 0.01 },
-  spring_constant: { min: 1, max: 100, step: 1 },
-  amplitude: { min: 0.05, max: 1.5, step: 0.05 },
-  radius: { min: 0.2, max: 5, step: 0.1 },
-  force: { min: 1, max: 100, step: 1 },
-  arm_length: { min: 0.1, max: 5, step: 0.1 },
-  charge1: { min: -10, max: 10, step: 0.1 },
-  charge2: { min: -10, max: 10, step: 0.1 },
-  charge3: { min: -10, max: 10, step: 0.1 },
-  charge4: { min: -10, max: 10, step: 0.1 },
-  separation: { min: 0.1, max: 5, step: 0.1 },
-  voltage: { min: 0, max: 24, step: 0.5 },
-  resistance: { min: 1, max: 100, step: 1 },
-  internal_resistance: { min: 0, max: 10, step: 0.1 },
-  area_ratio: { min: 0.2, max: 8, step: 0.1 },
-  density: { min: 1, max: 1500, step: 1 },
-  tension: { min: 1, max: 100, step: 1 },
-  linear_density: { min: 0.001, max: 0.01, step: 0.001 },
-  harmonic: { min: 1, max: 6, step: 1 },
-  atomic_number: { min: 1, max: 10, step: 1 },
-  n_initial: { min: 2, max: 8, step: 1 },
-  n_final: { min: 1, max: 7, step: 1 },
 };
 
 function saveHistory(prompt: string, config: SimulationConfig) {
@@ -146,10 +71,7 @@ function paramLabel(type: string, key: string) {
 }
 
 function sliderRange(type: string, key: string) {
-  if (type === "free_fall" && key === "mass") return { min: 0.1, max: 25, step: 0.1 };
-  if (type === "spring_mass" && key === "mass") return { min: 0.5, max: 5, step: 0.1 };
-  if (type === "standing_waves" && key === "length") return { min: 0.5, max: 3, step: 0.1 };
-  return SLIDER_RANGES[key] ?? { min: 0, max: 20, step: 0.1 };
+  return getControlRange(type as SimulationType, key);
 }
 
 function metricLabel(key: string) {
@@ -284,7 +206,7 @@ function validateSimulationConfig(config: SimulationConfig, prompt: string) {
     if (!hasNumber(next.params[key])) assumed(key, value, label);
   };
 
-  if (!hasNumber(config.world?.gravity) && GRAVITY_SCENARIOS.has(config.type)) {
+  if (!hasNumber(config.world?.gravity) && GRAVITY_SIMULATION_TYPES.has(config.type)) {
     assumptions.push("Using standard value: g = 9.8 m/s^2");
   }
 
@@ -606,7 +528,7 @@ function normalizeBernoulliConfig(config: SimulationConfig, prompt: string): Sim
 function mergePromptExtraction(config: SimulationConfig, prompt: string): SimulationConfig {
   const extracted = parsePhysicsPrompt(prompt);
   if (!extracted || extracted.type !== config.type) return config;
-  const defaults = DEFAULT_CONFIGS[config.type];
+  const defaults = getDefaultConfig(config.type);
   const params = { ...config.params };
   for (const [key, value] of Object.entries(extracted.params)) {
     const defaultValue = defaults.params[key];
@@ -775,7 +697,7 @@ function confidenceForType(type: SimulationType, config: SimulationConfig | null
 function getSimulationConfidence(parsedOutput: SimulationConfig | null, rawPrompt: string): ConfidenceResult {
   const explicitType = explicitLabType(rawPrompt);
   if (explicitType) {
-    const config = parsedOutput?.type === explicitType ? parsedOutput : DEFAULT_CONFIGS[explicitType];
+    const config = parsedOutput?.type === explicitType ? parsedOutput : getDefaultConfig(explicitType);
     return {
       simulationType: explicitType,
       confidence: 0.98,
@@ -784,8 +706,8 @@ function getSimulationConfidence(parsedOutput: SimulationConfig | null, rawPromp
     };
   }
 
-  const candidates = (Object.keys(DEFAULT_CONFIGS) as SimulationType[])
-    .map((type) => confidenceForType(type, parsedOutput?.type === type ? parsedOutput : DEFAULT_CONFIGS[type], rawPrompt))
+  const candidates = SIMULATION_TYPES
+    .map((type) => confidenceForType(type, parsedOutput?.type === type ? parsedOutput : getDefaultConfig(type), rawPrompt))
     .filter((result) => result.simulationType !== null)
     .sort((a, b) => b.confidence - a.confidence);
   const parsedCandidate = parsedOutput ? confidenceForType(parsedOutput.type, parsedOutput, rawPrompt) : null;
@@ -828,7 +750,7 @@ function normalizeForPrompt(config: SimulationConfig, prompt: string): Simulatio
 
 function configForConfidence(parsed: SimulationConfig, confidence: ConfidenceResult, prompt: string): SimulationConfig {
   const type = confidence.simulationType ?? parsed.type;
-  const defaults = DEFAULT_CONFIGS[type];
+  const defaults = getDefaultConfig(type);
   const base = parsed.type === type
     ? {
         ...defaults,
@@ -962,7 +884,7 @@ export default function SimulationClient() {
 
       if (!parsed || !parsed.type || !parsed.params) {
         if (requestedType) {
-          const fallbackConfig = normalizeForPrompt(DEFAULT_CONFIGS[requestedType], prompt);
+          const fallbackConfig = normalizeForPrompt(getDefaultConfig(requestedType), prompt);
           const confidence = getSimulationConfidence(fallbackConfig, prompt);
           const validatedNext = validateSimulationConfig(configForConfidence(fallbackConfig, confidence, prompt), prompt);
           const nextConfig = validatedNext.config;
@@ -1038,10 +960,10 @@ export default function SimulationClient() {
   const activeConfig = validated.config;
   const explanation = buildExplanation(activeConfig, outcome);
   const shownExplanation = displayExplanation(activeConfig, outcome, explanation);
-  const scenarioLabel = SCENARIO_LABELS[activeConfig.type] ?? activeConfig.type;
-  const paramKeys = PARAM_ORDER[activeConfig.type] ?? Object.keys(activeConfig.params);
+  const scenarioLabel = getSimulationMetadata(activeConfig.type).displayName;
+  const paramKeys = getParamOrder(activeConfig.type) ?? Object.keys(activeConfig.params);
   const visibleParams = Object.entries(activeConfig.params).filter(([key]) => paramKeys.includes(key));
-  const showGravity = GRAVITY_SCENARIOS.has(activeConfig.type);
+  const showGravity = GRAVITY_SIMULATION_TYPES.has(activeConfig.type);
   const hasRun = Boolean(outcome?.launched);
   const shouldBlockRender = submittedAttempted && (!validated.valid || !activeConfidence.shouldRender);
 

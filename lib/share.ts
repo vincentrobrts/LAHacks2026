@@ -1,4 +1,5 @@
 import type { SimulationConfig } from "@/types/simulation";
+import { validateSharedSimulation } from "@/lib/simulations/schema";
 
 export function encodeSimulation(config: SimulationConfig, prompt: string) {
   const json = JSON.stringify({ config, prompt });
@@ -9,7 +10,7 @@ export function decodeSimulation(value: string | null): { config: SimulationConf
   if (!value) return null;
 
   try {
-    return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(value)))));
+    return validateSharedSimulation(JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(value))))));
   } catch {
     return null;
   }

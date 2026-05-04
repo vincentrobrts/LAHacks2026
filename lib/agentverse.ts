@@ -1,4 +1,5 @@
 import { parsePhysicsPrompt } from "@/lib/parser";
+import { validateSimulationConfig } from "@/lib/simulations/schema";
 import type { SimulationConfig } from "@/types/simulation";
 
 export async function parseWithAgentverse(prompt: string): Promise<SimulationConfig | null> {
@@ -10,7 +11,7 @@ export async function parseWithAgentverse(prompt: string): Promise<SimulationCon
     });
     if (!res.ok) throw new Error("parse API failed");
     const data = await res.json();
-    return data && data.type && data.params ? data : parsePhysicsPrompt(prompt);
+    return validateSimulationConfig(data) ?? parsePhysicsPrompt(prompt);
   } catch {
     return parsePhysicsPrompt(prompt);
   }
