@@ -1,5 +1,6 @@
 import Groq from "groq-sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { validateParsedCompound } from "@/lib/simulations/schema";
 import type { ParsedCompound } from "@/lib/physics/builder";
 
 const SYSTEM_PROMPT = `You are a physics system parser. Given a natural-language description of a physics system or circuit, output ONLY valid JSON — no explanation, no markdown, no code blocks.
@@ -106,11 +107,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to parse LLM response", raw }, { status: 422 });
     }
 
-    if (!Array.isArray(parsed.components) || !Array.isArray(parsed.connections)) {
+    const validated = validateParsedCompound(parsed);
+    if (!validated) {
       return NextResponse.json({ error: "Invalid schema", raw }, { status: 422 });
     }
 
-    return NextResponse.json(parsed);
+    return NextResponse.json(validated);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
